@@ -42,11 +42,14 @@
 如果你正在使用 **Google Antigravity**、**Cursor**、**Claude Code**、**Windsurf** 或任意 AI 编程助手，**只需将下面这段 Prompt 发送给 AI 即可全自动完成配置与启动**：
 
 ```text
-请阅读当前项目代码，帮我完成环境配置并启动服务：
-1. 检查 Python 3.10+ 运行环境；
-2. 运行 `python setup_env.py` 自动校验并安装 requirements.txt 中的依赖项；
-3. 检查 models/ 目录下的 ONNX 抠图模型权重（缺失将自动安全引导）；
-4. 运行 `python server.py` 启动本地 8765 端口服务，并自动在浏览器中打开 http://127.0.0.1:8765。
+请帮我克隆并部署这个鞋样送审系统项目，全自动完成环境配置与启动：
+1. 克隆公开仓库：
+   git clone https://github.com/djlancemcyy-dot/PSDweb.git
+   cd PSDweb
+2. 检查本机 Python 3.10+ 运行环境；
+3. 运行 `python setup_env.py` 自动校验并安装 requirements.txt 中的依赖项；
+4. 检查 models/ 目录下的 ONNX 抠图模型权重（缺失将自动安全引导）；
+5. 运行 `python server.py` 启动本地 8765 端口服务，并自动在浏览器中打开 http://127.0.0.1:8765。
 ```
 
 ---
