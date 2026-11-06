@@ -1,0 +1,40 @@
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Portable Runtime (随包运行时，体积大不入库)
+runtime/
+
+# Heavy ONNX Deep Learning Model Weights (单文件超 100MB，需通过脚本自动下载)
+models/*.onnx
+!models/.gitkeep
+
+# Outputs & Temporary User Uploads
+output/*.jpg
+output/*.png
+output/*.psd
+!output/.gitkeep
+data/extracted_pdf_logos.json
+static/uploads/*.jpg
+static/uploads/*.png
+static/uploads/*.jpeg
+!static/uploads/.gitkeep
+
+# Version Backups & Release Zips
+backups/
+archive/
+*.zip
+*.tar.gz
+
+# IDE & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,110 @@
+[
+  {
+    "id": "prod_206209",
+    "sku": "206209",
+    "name": "经典复古拼接单鞋 (4色四宫格)",
+    "category": "单鞋",
+    "season": "四季鞋",
+    "craft": "冷粘",
+    "fabrics": "牛反绒+沙丁布",
+    "soles": "橡胶大底",
+    "size": "36",
+    "default_colors": ["黑色", "粉色", "红色", "蓝色"],
+    "colors": [
+      {
+        "id": "col_1",
+        "color_name": "黑色",
+        "image_url": "/static/uploads/sample_68e206bc.png",
+        "raw_filename": "sample_68e206bc.png",
+        "cutout_filename": "sample_68e206bc.png",
+        "is_cutout": true
+      },
+      {
+        "id": "col_2",
+        "color_name": "粉色",
+        "image_url": "/static/uploads/sample_15529268.png",
+        "raw_filename": "sample_15529268.png",
+        "cutout_filename": "sample_15529268.png",
+        "is_cutout": true
+      },
+      {
+        "id": "col_3",
+        "color_name": "红色",
+        "image_url": "/static/uploads/sample_a71092b8.png",
+        "raw_filename": "sample_a71092b8.png",
+        "cutout_filename": "sample_a71092b8.png",
+        "is_cutout": true
+      },
+      {
+        "id": "col_4",
+        "color_name": "蓝色",
+        "image_url": "/static/uploads/sample_efa09a3b.png",
+        "raw_filename": "sample_efa09a3b.png",
+        "cutout_filename": "sample_efa09a3b.png",
+        "is_cutout": true
+      }
+    ],
+    "cover_image": "/static/uploads/sample_15529268.png",
+    "layout_history": [
+      {
+        "id": "snap_init_206209",
+        "name": "标准4色四宫格排版 (鞋舌方标+鞋侧草书标)",
+        "created_at": "2026-11-06 12:00:00",
+        "shoes_count": 4,
+        "shoes": []
+      }
+    ],
+    "notes": "女鞋经典样品单，常规冷粘工艺，鞋舌方标+鞋侧草书标",
+    "updated_at": "2026-11-06 14:00:00"
+  },
+  {
+    "id": "prod_206229",
+    "sku": "206229",
+    "name": "反绒皮休闲女单鞋 (侧面+后跟标款)",
+    "category": "单鞋",
+    "season": "四季鞋",
+    "craft": "冷粘",
+    "fabrics": "牛反绒+沙丁布+植绒",
+    "soles": "橡胶大底",
+    "size": "36",
+    "default_colors": ["黑色", "咖色", "米白"],
+    "colors": [
+      {
+        "id": "col_21",
+        "color_name": "黑色",
+        "image_url": "/static/uploads/sample_68e206bc.png",
+        "raw_filename": "sample_68e206bc.png",
+        "cutout_filename": "sample_68e206bc.png",
+        "is_cutout": true
+      },
+      {
+        "id": "col_22",
+        "color_name": "咖色",
+        "image_url": "/static/uploads/sample_15529268.png",
+        "raw_filename": "sample_15529268.png",
+        "cutout_filename": "sample_15529268.png",
+        "is_cutout": true
+      },
+      {
+        "id": "col_23",
+        "color_name": "米白",
+        "image_url": "/static/uploads/sample_a71092b8.png",
+        "raw_filename": "sample_a71092b8.png",
+        "cutout_filename": "sample_a71092b8.png",
+        "is_cutout": true
+      }
+    ],
+    "cover_image": "/static/uploads/sample_68e206bc.png",
+    "layout_history": [
+      {
+        "id": "snap_init_206229",
+        "name": "三色品字形排版 (后跟大标)",
+        "created_at": "2026-11-06 12:00:00",
+        "shoes_count": 3,
+        "shoes": []
+      }
+    ],
+    "notes": "后跟大标款，NVG-YOUNG白底镂空",
+    "updated_at": "2026-11-06 14:00:00"
+  }
+]

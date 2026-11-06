@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小帆船 · 鞋样送审图稿制作系统</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="qz-app">
+
+  <!-- 1. Top Header (Clean, Light/Dark, Like 秋知设计助手) -->
+  <header class="qz-header">
+    <div class="header-left">
+      <div class="qz-brand">
+        <img src="/static/assets/logos/logo_square_boat.png" alt="Navigare" class="brand-logo">
+        <span class="brand-name">小帆船送审系统</span>
+        <span class="brand-tag">A4 300DPI 审版专用</span>
+      </div>
+    </div>
+
+    <!-- Center Breadcrumbs & Status -->
+    <div class="header-center">
+      <div class="current-task-chip">
+        <span class="indicator-dot"></span>
+        <span id="header-task-name">款式 206209</span>
+        <span class="task-state-badge" id="header-task-badge">就绪</span>
+      </div>
+
+      <!-- LAN Share Pill (Click to copy) -->
+      <div class="lan-pill" id="lan-share-badge" title="点击复制局域网访问地址给同事">
+        <span class="lan-dot"></span>
+        <span>局域网:</span>
+        <strong id="lan-url-text">http://192.168.31.110:8765</strong>
+        <span class="copy-hint">复制</span>
+      </div>
+
+      <a href="/docs" target="_blank" class="api-doc-link" title="OpenAPI 接口文档">
+        <span>🤖 开放接口</span>
+      </a>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-right">
+      <button class="qz-btn qz-btn-secondary" id="btn-save-layout-snapshot" title="将当前画布排版与标位存入该款式的历史库">
+        <span>📸</span> 存排版快照
+      </button>
+      <button class="qz-btn qz-btn-primary" id="btn-render-current" title="导出当前款式的 300DPI 送审大图及 Photoshop 可编辑分层 PSD 工程文件">
+        <span>📥</span> 生成审版图 (300DPI + PSD)
+      </button>
+      <button class="qz-btn qz-btn-secondary" id="btn-open-folder" title="打开成品存储文件夹">
+        <span>📁</span> 成品目录
+      </button>
+      <button class="theme-toggle-btn" id="btn-theme-toggle" title="切换浅色 / 深色主题">
+        <span id="theme-icon">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 2. Main Workspace Layout: Left Sidebar + Specs Panel + Center Viewport -->
+  <div class="qz-workspace">
+    
+    <!-- Left Navigation Rail: Batch / Task Management (恢复完整任务栏) -->
+    <aside class="qz-sidebar-rail">
+      <!-- Task Group / Batch Header -->
+      <div class="batch-section">
+        <div class="batch-title-row">
+          <span class="batch-label">送审批次标签</span>
+          <button class="batch-add-btn" id="btn-create-group" title="新建送审批次标签">➕ 新批次</button>
+        </div>
+        <div class="batch-select-wrap">
+          <select id="group-select" class="batch-dropdown" title="切换任务批次">
+            <!-- Populated by JS -->
+          </select>
+          <button class="batch-tool-btn" id="btn-rename-group" title="修改批次名称">✏️</button>
+          <button class="batch-tool-btn btn-danger-icon" id="btn-delete-group" title="删除批次 (二次确认)">🗑️</button>
+        </div>
+      </div>
+
+      <!-- Tasks in Active Batch -->
+      <div class="tasks-tree-container">
+        <div class="tasks-tree-head">
+          <span id="sidebar-batch-name">款式任务列表</span>
+          <span class="tasks-count-chip" id="sidebar-tasks-count">0 款</span>
+        </div>
+
+        <button class="btn-add-task-item" id="btn-create-task">
+          <span>➕</span> 添加送审款式
+        </button>
+
+        <div class="tasks-scroll-list" id="sidebar-tasks-list">
+          <!-- Dynamically populated tasks inside active group -->
+        </div>
+      </div>
+
+      <!-- Sidebar Bottom: Product Library & Batch Render -->
+      <div class="sidebar-bottom-panel">
+        <button class="btn-sidebar-full btn-lib-accent" id="btn-open-prod-lib">
+          <span>📖</span> 款式资料库 (多色图片·排版)
+        </button>
+        <button class="btn-sidebar-full btn-batch-accent" id="btn-batch-render-all" title="批量生成当前批次下的所有款式">
+          <span>📦</span> 批量导出全批次
+        </button>
+      </div>
+    </aside>
+
+    <!-- Center Left: Specs Parameter Panel -->
+    <aside class="qz-specs-panel">
+      <div class="specs-panel-head">
+        <span class="specs-head-title">版单规格参数</span>
+        <span class="specs-sync-tag">自动同步</span>
+      </div>
+
+      <!-- Quick AI & Library Tools -->
+      <div class="specs-quick-tools">
+        <button class="quick-btn btn-ai-gradient" id="btn-ai-parse-modal" title="粘贴客户聊天记录，AI 自动解析规格与颜色">
+          <span>✨</span> AI智能提取
+        </button>
+        <button class="quick-btn" id="btn-quick-import-prod" title="从款式资料库导入完整规格与颜色">
+          <span>📖</span> 库导入
+        </button>
+        <button class="quick-btn" id="btn-save-to-prod-lib" title="将当前规格与鞋款保存到款式库">
+          <span>💾</span> 存模版
+        </button>
+      </div>
+
+      <!-- Specs Form Fields -->
+      <div class="specs-form-body">
+        <div class="form-row">
+          <label class="qz-label">款号 / 货号 (任务名)</label>
+          <input type="text" id="input-sku" class="qz-input" placeholder="如 206209">
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">素材编号 (当天日期)</label>
+          <input type="text" id="input-material-code" class="qz-input" placeholder="如 2026.11.06">
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">样品尺码 (女鞋样品固定 36)</label>
+          <input type="text" id="input-size" class="qz-input" value="36">
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">鞋类类别</label>
+          <div class="qz-pill-group" id="pill-category"></div>
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">季节类型</label>
+          <div class="qz-pill-group" id="pill-season"></div>
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">制作工艺</label>
+          <div class="qz-pill-group" id="pill-craft"></div>
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">鞋面面料</label>
+          <input type="text" id="input-fabrics" class="qz-input" placeholder="输入面料组合">
+          <div class="qz-chips-cloud" id="tags-fabric"></div>
+        </div>
+
+        <div class="form-row">
+          <label class="qz-label">鞋底材质</label>
+          <input type="text" id="input-soles" class="qz-input" placeholder="输入鞋底材质">
+          <div class="qz-chips-cloud" id="tags-sole"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Main: Equal-Ratio 3508x2480 Canvas Viewport -->
+    <main class="qz-canvas-viewport" id="canvas-viewport">
+      
+      <!-- Floating Glass Toolbar above Canvas -->
+      <div class="floating-viewport-bar">
+        <div class="bar-left-info">
+          <span class="canvas-res-tag">3508 × 2480 · 300DPI</span>
+          <span class="canvas-color-count" id="canvas-shoe-count-hint">0 色</span>
+        </div>
+
+        <div class="bar-separator"></div>
+
+        <div class="bar-ai-actions">
+          <button class="bar-action-btn" id="btn-ai-layout" title="根据当前鞋子数量（1~15）自动计算最优均分网格">
+            <span>✨</span> AI 鞋样排版
+          </button>
+          <button class="bar-action-btn btn-accent-cyan" id="btn-auto-layout-logos" title="自动将鞋面所有标贴规整到鞋舌/侧身/后跟标准区域，杜绝重叠堆挤">
+            <span>🏷️</span> 标贴智能排版
+          </button>
+          <button class="bar-action-btn" id="btn-batch-cutout" title="对当前款式中未抠图的照片一键批量离线去底">
+            <span>✂️</span> 批量去底抠图
+          </button>
+          <button class="bar-action-btn btn-accent-purple" id="btn-toggle-edit-template" title="点击编辑底表表头：修改工厂/样品单名称，更换品牌主LOGO">
+            <span>✏️</span> 编辑底表模版
+          </button>
+        </div>
+
+        <div class="bar-separator"></div>
+
+        <!-- Zoom Stepper Controls -->
+        <div class="zoom-stepper-box">
+          <button class="zoom-stepper-btn" id="btn-zoom-out" title="缩小视口">➖</button>
+          <span class="zoom-readout" id="zoom-level-text">适应</span>
+          <button class="zoom-stepper-btn" id="btn-zoom-in" title="放大视口">➕</button>
+          <button class="zoom-stepper-btn btn-zoom-preset" id="btn-zoom-100" title="100% 原始大小">1:1</button>
+          <button class="zoom-stepper-btn btn-zoom-preset" id="btn-zoom-fit" title="自适应窗口大小">适应</button>
+        </div>
+
+        <span class="bar-tip-text">💡 鼠标按住鞋款平移 · 滚轮等比缩放 · 底部点击小帆船标贴标</span>
+      </div>
+
+      <!-- Scrollable Stage Container -->
+      <div class="stage-scroll-wrapper" id="canvas-scroll-container">
+        <!-- 3508 x 2480 Stage with STRICT aspect ratio & flex-shrink: 0 -->
+        <div class="sheet-stage" id="sheet-stage">
+          <!-- 1. Pure White Vector Background Canvas -->
+          <div class="sheet-base-bg"></div>
+
+          <!-- 2. Dynamic Vector Table Lines Layer (SVG with customizable stroke and color) -->
+          <svg id="table-lines-svg" class="table-lines-svg" viewBox="0 0 3508 2480"></svg>
+
+          <!-- 3. Dynamic Interactive Editable Text Layer (All text elements) -->
+          <div class="table-texts-layer" id="table-texts-layer">
+            <!-- Header Brand Logo Box -->
+            <div class="stage-header-logo-box" id="stage-header-logo-box" title="点击更换品牌主LOGO">
+              <img id="stage-header-logo-img" src="/static/assets/logos/logo_square_boat.png" alt="Logo">
+              <div class="logo-edit-tip">📷 更换</div>
+            </div>
+
+            <!-- Header Title -->
+            <div class="canvas-editable-text title-text" id="text-tmpl-title" data-field="title" title="点击更换字体或文本内容">
+              <span class="text-val">臻兴科技开发样品单</span>
+            </div>
+
+            <!-- Reviewer & Re-reviewer Box -->
+            <div class="canvas-editable-text reviewer-text" id="text-tmpl-reviewers" data-field="reviewers" title="点击编辑审核与复核文本">
+              <span class="text-val-rev1">审核:</span>
+              <span class="text-val-rev2">复核:</span>
+            </div>
+
+            <!-- Category Title (Large Text: 成人女鞋) -->
+            <div class="canvas-editable-text category-title-text" id="text-tmpl-category-title" data-field="category_title" title="点击编辑品类大标题">
+              <span class="text-val">成人女鞋</span>
+            </div>
+
+            <!-- Fabrics & Soles Box -->
+            <div class="canvas-editable-text fabrics-text" id="text-tmpl-fabrics" data-field="fabrics" title="点击编辑面料组合">
+              面料: <span class="val-part">牛反绒+沙丁布</span>
+            </div>
+            <div class="canvas-editable-text soles-text" id="text-tmpl-soles" data-field="soles" title="点击编辑鞋底材质">
+              鞋底: <span class="val-part">橡胶大底</span>
+            </div>
+
+            <!-- Left Specifications Grid (10 Rows) -->
+            <div class="left-table-grid" id="left-table-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- 4. Floating Typography & Font Properties Bar -->
+          <div class="floating-typography-bar" id="floating-typography-bar" style="display: none;">
+            <div class="typo-bar-header">
+              <span class="typo-badge">🔤 文字与字体调节</span>
+              <span class="typo-field-name" id="typo-field-name">选中字段</span>
+              <button class="typo-close-btn" id="btn-close-typo-bar" title="关闭属性栏">✕</button>
+            </div>
+            <div class="typo-bar-body">
+              <div class="typo-row">
+                <label>文本内容</label>
+                <input type="text" id="typo-content-input" class="qz-input qz-input-sm" placeholder="输入文字">
+              </div>
+              <div class="typo-row">
+                <label>字体族</label>
+                <select id="typo-font-family-select" class="qz-input qz-input-sm">
+                  <option value="Microsoft YaHei">微软雅黑 (Microsoft YaHei)</option>
+                  <option value="SimHei">黑体 (SimHei)</option>
+                  <option value="SimSun">宋体 (SimSun)</option>
+                  <option value="KaiTi">楷体 (KaiTi)</option>
+                  <option value="FangSong">仿宋 (FangSong)</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                </select>
+              </div>
+              <div class="typo-row typo-grid-2">
+                <div>
+                  <label>字号 (px)</label>
+                  <div class="stepper-mini">
+                    <button id="btn-typo-size-dec">-</button>
+                    <input type="number" id="typo-font-size-input" min="16" max="140" step="2" value="52">
+                    <button id="btn-typo-size-inc">+</button>
+                  </div>
+                </div>
+                <div>
+                  <label>粗细 & 颜色</label>
+                  <div class="typo-style-toggles">
+                    <button class="btn-toggle-bold" id="btn-typo-bold-toggle" title="加粗/常规">B</button>
+                    <input type="color" id="typo-color-picker" value="#000000" class="typo-color-box" title="选择字体颜色">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Floating Table Lines & Border Style Bar -->
+          <div class="floating-line-style-bar" id="floating-line-style-bar" style="display: none;">
+            <div class="line-bar-header">
+              <span class="line-badge">📐 表格线条与网格调节</span>
+              <button class="typo-close-btn" id="btn-close-line-bar" title="关闭">✕</button>
+            </div>
+            <div class="line-bar-body">
+              <div class="line-row">
+                <label>外边框粗细</label>
+                <select id="line-border-width-select" class="qz-input qz-input-sm">
+                  <option value="1">1px (细线)</option>
+                  <option value="2">2px (标准)</option>
+                  <option value="3">3px (中粗)</option>
+                  <option value="4" selected>4px (标准工单加粗)</option>
+                  <option value="6">6px (特粗)</option>
+                </select>
+              </div>
+              <div class="line-row">
+                <label>内网格粗细</label>
+                <select id="line-inner-width-select" class="qz-input qz-input-sm">
+                  <option value="1">1px (细线)</option>
+                  <option value="2" selected>2px (标准网格)</option>
+                  <option value="3">3px (加强)</option>
+                </select>
+              </div>
+              <div class="line-row">
+                <label>线条颜色</label>
+                <div class="color-picker-wrap">
+                  <input type="color" id="line-color-picker" value="#000000" class="typo-color-box">
+                  <span id="line-color-hex">#000000</span>
+                </div>
+              </div>
+              <div class="line-row">
+                <label>左侧表格宽度</label>
+                <div class="slider-wrap">
+                  <input type="range" id="line-divider-slider" min="650" max="1100" value="840" step="10">
+                  <span id="line-divider-readout">840px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Template Editing Action Banner (Shown in Template Edit Mode) -->
+          <div class="tmpl-edit-control-bar" id="tmpl-edit-control-bar" style="display: none;">
+            <div class="tmpl-banner-left">
+              <span class="tmpl-edit-indicator">✏️ 底表模版全面编辑中</span>
+              <span class="tmpl-sub-hint">点击任意文字可更换文本/字体/大小 · 点击表格可调整线条粗细与颜色</span>
+            </div>
+            <div class="tmpl-banner-actions">
+              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-open-line-bar">📐 调整线条</button>
+              <button class="qz-btn qz-btn-primary qz-btn-sm" id="btn-save-tmpl-header">💾 保存模版</button>
+              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-reset-tmpl-header">↺ 恢复默认</button>
+              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-exit-tmpl-header">✕ 完成退出</button>
+            </div>
+          </div>
+
+          <!-- 7. Dynamic Shoes & Logos Layer -->
+          <div id="stage-shoes-layer" style="position: absolute; inset: 0;"></div>
+
+          <!-- 8. Smart Alignment Guides & Snapping SVG Layer (拖拽对齐参考线) -->
+          <svg id="stage-guides-layer" class="stage-guides-layer" viewBox="0 0 3508 2480"></svg>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- 3. Bottom Functional Drawer: 款式颜色图 (1~15色) & 小帆船 LOGO 资产池 (用户截图位置放到底部当功能区！) -->
+  <footer class="qz-bottom-drawer" id="bottom-drawer">
+    <!-- Drawer Toggle Header -->
+    <div class="drawer-header-bar">
+      <div class="drawer-title-group">
+        <span class="drawer-title">🎨 款式颜色图 & 品牌标贴功能区</span>
+        <span class="drawer-count-badge" id="shoe-count-tag">0 / 15 款</span>
+      </div>
+
+      <div class="drawer-toggle-wrap">
+        <span class="drawer-tip">左右横向排列 · 释放中间大图视野</span>
+        <button class="btn-drawer-collapse" id="btn-toggle-drawer" title="收起/展开底部功能区">
+          <span id="drawer-collapse-icon">▼</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Drawer Content Body (Horizontal Split: Uploads + Colors List + Navigare Logos) -->
+    <div class="drawer-content-body" id="drawer-content-body">
+      
+      <!-- Sub-panel 1: Quick Upload Dropzone -->
+      <div class="drawer-upload-pane">
+        <div class="qz-dropzone" id="upload-dropzone">
+          <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+          <div class="dropzone-icon">📷</div>
+          <div class="dropzone-text"><strong>点击上传</strong> 或拖入照片</div>
+          <div class="dropzone-hint">⚡ 极速暂存 · 录完批量去底</div>
+        </div>
+      </div>
+
+      <!-- Sub-panel 2: Horizontal Scrolling Shoe Color Cards (1~15 colors) -->
+      <div class="drawer-colors-pane">
+        <div class="colors-horizontal-track" id="shoe-list">
+          <!-- Dynamically populated shoe cards -->
+        </div>
+      </div>
+
+      <!-- Sub-panel 3: Navigare Brand Logos & Elements Assets Hub -->
+      <div class="drawer-logos-pane">
+        <div class="logos-pane-title">
+          <div class="logos-title-left">
+            <span>标贴与图案素材库</span>
+            <span class="logos-hint" id="logos-count-hint">112 款</span>
+          </div>
+          <div class="logos-title-actions">
+            <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-open-import-pdf-modal" title="从本地 PDF 批量导入矢量图案与标贴">📂 导入PDF</button>
+            <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-quick-auto-align-logos" title="自动规整当前鞋款上的所有标贴位置">✨ 规整</button>
+            <button class="qz-btn qz-btn-primary qz-btn-sm" id="btn-open-add-logo-modal" title="上传新的单张品牌标贴图片">➕ 上传</button>
+          </div>
+        </div>
+
+        <!-- Category filter tabs & search input -->
+        <div class="logos-filter-bar">
+          <div class="logo-cat-tabs" id="logo-cat-tabs">
+            <button class="logo-tab-btn active" data-cat="all">全部 (112)</button>
+            <button class="logo-tab-btn" data-cat="core">常用核心标</button>
+            <button class="logo-tab-btn" data-cat="pdf">22SS官方库 (108)</button>
+            <button class="logo-tab-btn" data-cat="custom">自定义</button>
+          </div>
+          <div class="logo-search-wrap">
+            <input type="text" id="logo-search-input" placeholder="🔍 搜索编号/名称 (如 001, 22SS, 草书)..." class="logo-search-input">
+          </div>
+        </div>
+
+        <div class="logos-compact-grid" id="logo-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Modal 1: Product Library Modal (增强版：支持一色对应一款多图、存排版记录) -->
+  <div class="qz-modal" id="modal-product-library">
+    <div class="qz-modal-box modal-xl">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">📖 款式资料库 (一色一图 · 规格模板 · 历史排版)</div>
+        <button class="modal-close-btn" id="btn-close-prod-modal">✕</button>
+      </div>
+
+      <div class="qz-modal-body">
+        <!-- Top Search & Create Bar -->
+        <div class="prod-search-bar">
+          <input type="text" id="prod-search-input" class="qz-input" placeholder="按款号、面料或款式名称快速搜索...">
+          <button class="qz-btn qz-btn-primary" id="btn-new-prod-item">➕ 新建模版档案</button>
+        </div>
+
+        <!-- Inline Product Editor Form -->
+        <div id="prod-edit-form" class="prod-form-container" style="display: none;">
+          <div class="form-box-title" id="prod-form-title">录入新款式资料档案 (支持多颜色图片)</div>
+          <div class="prod-form-grid">
+            <div class="form-row">
+              <label class="qz-label">款号 / 货号 *</label>
+              <input type="text" id="form-prod-sku" class="qz-input" placeholder="如 206209">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">款式名称</label>
+              <input type="text" id="form-prod-name" class="qz-input" placeholder="如 经典复古拼接单鞋">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">鞋面面料 *</label>
+              <input type="text" id="form-prod-fabrics" class="qz-input" placeholder="如 牛反绒+沙丁布">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">鞋底材质 *</label>
+              <input type="text" id="form-prod-soles" class="qz-input" placeholder="如 橡胶大底">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">鞋类类别</label>
+              <input type="text" id="form-prod-category" class="qz-input" value="单鞋">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">制作工艺</label>
+              <input type="text" id="form-prod-craft" class="qz-input" value="冷粘">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">适用季节</label>
+              <input type="text" id="form-prod-season" class="qz-input" value="四季鞋">
+            </div>
+            <div class="form-row">
+              <label class="qz-label">常用颜色 (逗号分隔快速参考)</label>
+              <input type="text" id="form-prod-colors" class="qz-input" placeholder="黑色, 酒红, 粉色, 米白">
+            </div>
+          </div>
+
+          <!-- Multi-Color Photo Manager: 一款多色，一色对应一张图片 -->
+          <div class="prod-colors-editor-wrap">
+            <div class="colors-editor-head">
+              <div class="editor-head-title">
+                <span>🎨 颜色与鞋款照片关联 (一色对应一张图片):</span>
+                <span class="editor-sub-tip">可为每个颜色上传独立照片，一键套用时直接全部载入排版</span>
+              </div>
+              <button type="button" class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-add-form-color-row">
+                <span>➕</span> 添加颜色款式图
+              </button>
+            </div>
+            <div class="colors-editor-list" id="form-colors-editor-list">
+              <!-- Dynamically rendered rows by JS: [Color Name] + [Upload Image] + [Preview] + [Del] -->
+            </div>
+          </div>
+
+          <div class="form-footer-actions">
+            <button class="qz-btn qz-btn-secondary" id="btn-cancel-prod-edit">取消</button>
+            <button class="qz-btn qz-btn-primary" id="btn-save-prod-item">保存到资料库</button>
+          </div>
+        </div>
+
+        <!-- Product Cards Grid with Multi-Color Shoes & Snapshots -->
+        <div class="prod-cards-grid" id="prod-library-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="qz-modal-foot">
+        <span class="modal-foot-tip">💡 提示：点击【一键套用 (规格+图片)】可直接将该款式的全部颜色照片载入当前画布！点击【恢复排版】可完美复原当时标位。</span>
+        <button class="qz-btn qz-btn-secondary" id="btn-close-prod-modal-foot">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: AI Natural Language Parsing Modal -->
+  <div class="qz-modal" id="modal-ai-parser">
+    <div class="qz-modal-box modal-md">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">✨ AI 智能规格解析</div>
+        <button class="modal-close-btn" id="btn-close-ai-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <p class="modal-intro-text">
+          直接粘贴微信、钉钉聊天文本或单据，AI 将秒级智能抽取出款号、面料、大底、工艺及颜色：
+        </p>
+        <textarea id="ai-parse-input" class="ai-input-area" rows="6" placeholder="例如：
+胡生，四张照片，面料：牛反绒 大底：橡胶底，颜色：黑色 酒红 粉色 米白，款号 206209，四季鞋冷粘工艺。"></textarea>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-ai-parse">取消</button>
+        <button class="qz-btn qz-btn-primary btn-ai-gradient" id="btn-submit-ai-parse">
+          <span>⚡</span> 智能识别并填入当前款式
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Rename Group Modal -->
+  <div class="qz-modal" id="modal-rename-group">
+    <div class="qz-modal-box modal-sm">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">✏️ 修改任务标签名称</div>
+        <button class="modal-close-btn" id="btn-close-rename-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <div class="form-row">
+          <label class="qz-label">新标签 (批次名称)</label>
+          <input type="text" id="input-new-group-name" class="qz-input" placeholder="输入新的标签名称">
+        </div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-rename-group">取消</button>
+        <button class="qz-btn qz-btn-primary" id="btn-confirm-rename-group">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Delete Group Strict Confirmation Modal (二次确认) -->
+  <div class="qz-modal" id="modal-delete-group-confirm">
+    <div class="qz-modal-box modal-sm border-danger">
+      <div class="qz-modal-head bg-danger-subtle">
+        <div class="modal-head-title text-danger">⚠️ 删除任务标签二次确认</div>
+        <button class="modal-close-btn" id="btn-close-delete-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <p class="delete-prompt-main">
+          你正在准备删除任务标签：<strong id="delete-target-group-name" class="text-danger"></strong>
+        </p>
+        <p class="delete-prompt-warn">
+          🚨 <strong>严重警告：</strong>此操作将同时删除该标签下安排的所有款式任务及图片数据，<strong>不可恢复</strong>！
+        </p>
+        <div class="delete-prompt-check">请确认是否继续删除？</div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-delete-group">取消保留</button>
+        <button class="qz-btn qz-btn-danger" id="btn-confirm-delete-group">
+          确认删除该标签
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: Add New Logo Template Modal (新增标贴模版) -->
+  <div class="qz-modal" id="modal-add-logo">
+    <div class="qz-modal-box modal-md">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">➕ 上传新增标贴模版</div>
+        <button class="modal-close-btn" id="btn-close-add-logo-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <div class="form-row">
+          <label class="qz-label">标贴名称 *</label>
+          <input type="text" id="input-new-logo-name" class="qz-input" placeholder="如 2026侧腰字母烫印标 / 鞋舌皮标">
+        </div>
+        <div class="form-row">
+          <label class="qz-label">标贴用途角色说明</label>
+          <input type="text" id="input-new-logo-role" class="qz-input" placeholder="如 鞋面/侧身标、后跟大标、织带副标">
+        </div>
+        <div class="form-row">
+          <label class="qz-label">推荐标准排版槽位</label>
+          <select id="select-new-logo-type" class="qz-input">
+            <option value="tongue">鞋舌口主标 (Slot 1 - 约在鞋舌中央偏上)</option>
+            <option value="side" selected>鞋面侧腰标 (Slot 2 - 约在鞋腰正侧中部)</option>
+            <option value="heel">后跟侧后大标 (Slot 3 - 约在鞋帮后跟处)</option>
+            <option value="strap">鞋领织带/侧后副标 (Slot 4 - 约在领口斜上方)</option>
+            <option value="toe">鞋头/大底侧边标 (Slot 5 - 约在鞋头侧包边)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="qz-label">选择标贴图片 (支持透明PNG / JPG) *</label>
+          <input type="file" id="input-new-logo-file" accept="image/*" class="qz-input-file">
+          <div class="form-hint-text">💡 建议使用透明底 PNG 文件，添加后将永久保存在标贴箱供所有款式调用。</div>
+        </div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-add-logo">取消</button>
+        <button class="qz-btn qz-btn-primary" id="btn-confirm-add-logo">上传并加入标贴箱</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: Edit Logo Template Modal (修改标贴信息) -->
+  <div class="qz-modal" id="modal-edit-logo">
+    <div class="qz-modal-box modal-sm">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">✏️ 编辑标贴属性</div>
+        <button class="modal-close-btn" id="btn-close-edit-logo-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <input type="hidden" id="edit-logo-id">
+        <div class="form-row">
+          <label class="qz-label">标贴名称</label>
+          <input type="text" id="input-edit-logo-name" class="qz-input">
+        </div>
+        <div class="form-row">
+          <label class="qz-label">角色说明</label>
+          <input type="text" id="input-edit-logo-role" class="qz-input">
+        </div>
+        <div class="form-row">
+          <label class="qz-label">标准排版槽位</label>
+          <select id="select-edit-logo-type" class="qz-input">
+            <option value="tongue">鞋舌口主标</option>
+            <option value="side">鞋面侧腰标</option>
+            <option value="heel">后跟侧后大标</option>
+            <option value="strap">鞋领织带/侧后副标</option>
+            <option value="toe">鞋头/大底侧边标</option>
+          </select>
+        </div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-edit-logo">取消</button>
+        <button class="qz-btn qz-btn-primary" id="btn-confirm-edit-logo">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Modal: Import Logos from PDF Modal -->
+  <div class="qz-modal" id="modal-import-pdf">
+    <div class="qz-modal-box">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">📂 批量从 PDF 提取导入矢量标贴与图案</div>
+        <button class="modal-close-btn" id="btn-close-import-pdf-modal">✕</button>
+      </div>
+      <div class="qz-modal-body">
+        <div class="form-row">
+          <label class="qz-label">PDF 矢量手册路径</label>
+          <input type="text" id="input-pdf-path" class="qz-input" placeholder="留空默认提取 Downloads/新建文件夹 (2)/22FW图案编号基础版02.12 (1).pdf">
+          <div class="form-hint-text">💡 系统会自动以 150/300 DPI 纯净光栅化并智能裁剪白边，生成透明底 PNG 标贴永久加入素材库。</div>
+        </div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-import-pdf">取消</button>
+        <button class="qz-btn qz-btn-primary" id="btn-confirm-import-pdf">🚀 开始批量提取</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden File Pickers for Instant In-place Replacements -->
+  <input type="file" id="tmpl-logo-file-input" accept="image/*" style="display: none;">
+  <input type="file" id="shoe-replace-file-input" accept="image/*" style="display: none;">
+  <input type="file" id="logo-replace-file-input" accept="image/*" style="display: none;">
+
+  <!-- Global Loading Modal -->
+  <div class="loading-modal" id="loading-modal">
+    <div class="loading-card">
+      <div class="loading-spinner"></div>
+      <div id="loading-text" class="loading-label">正在处理中...</div>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification -->
+  <div class="toast-chip" id="global-toast">已复制</div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

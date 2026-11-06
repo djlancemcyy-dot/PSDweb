@@ -1,0 +1,98 @@
+[
+  {
+    "id": "group_default",
+    "name": "11.06 送审批次 (默认)",
+    "created_at": "2026-11-06 12:00:00",
+    "tasks": [
+      {
+        "id": "task_206209",
+        "name": "经典复古拼接单鞋 (4色四宫格)",
+        "sku": "206209",
+        "material_code": "2026.11.06",
+        "season": "四季鞋",
+        "craft": "冷粘",
+        "category": "单鞋",
+        "size": "36",
+        "fabrics": "牛反绒+沙丁布",
+        "soles": "橡胶大底",
+        "shoes": [
+          {
+            "id": "shoe_1793946599267_0",
+            "color_name": "黑色",
+            "raw_filename": "sample_68e206bc.png",
+            "cutout_filename": "sample_68e206bc.png",
+            "is_cutout": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale_multiplier": 1.0,
+            "logos": [
+              {
+                "logo_id": "logo_square_boat",
+                "file": null,
+                "rel_x": 0.38,
+                "rel_y": 0.08,
+                "scale": 1.0,
+                "rotation": 0.0
+              }
+            ]
+          },
+          {
+            "id": "shoe_1793946599267_1",
+            "color_name": "粉色",
+            "raw_filename": "sample_15529268.png",
+            "cutout_filename": "sample_15529268.png",
+            "is_cutout": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale_multiplier": 1.0,
+            "logos": [
+              {
+                "logo_id": "logo_square_boat",
+                "file": "logos/logo_square_boat.png",
+                "rel_x": 0.38,
+                "rel_y": 0.08,
+                "scale": 1.0,
+                "rotation": 0.0
+              }
+            ]
+          },
+          {
+            "id": "shoe_1793946599267_2",
+            "color_name": "红色",
+            "raw_filename": "sample_a71092b8.png",
+            "cutout_filename": "sample_a71092b8.png",
+            "is_cutout": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale_multiplier": 1.0,
+            "logos": []
+          },
+          {
+            "id": "shoe_1793946599267_3",
+            "color_name": "蓝色",
+            "raw_filename": "sample_efa09a3b.png",
+            "cutout_filename": "sample_efa09a3b.png",
+            "is_cutout": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale_multiplier": 1.0,
+            "logos": []
+          }
+        ]
+      },
+      {
+        "id": "task_206229",
+        "name": "款式 206229",
+        "sku": "206229",
+        "material_code": "2026.11.06",
+        "season": "四季鞋",
+        "craft": "冷粘",
+        "category": "单鞋",
+        "size": "36",
+        "fabrics": "牛反绒+沙丁布+植绒",
+        "soles": "橡胶大底",
+        "shoes": []
+      }
+    ]
+  }
+]
