@@ -347,7 +347,10 @@ except Exception as e:
 
 try:
     import numpy as np
+    import packbits
     import pytoshop
+    import pytoshop.codecs
+    pytoshop.codecs.packbits = packbits
     from pytoshop import enums
     from pytoshop.user import nested_layers
     HAS_PYTOSHOP = True
@@ -1987,6 +1990,9 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             head_logo_info = {"x": paste_x, "y": paste_y, "w": target_lw, "h": target_lh}
         except Exception as e:
             print(f"[Render] 主LOGO绘制异常: {e}")
+    base_sheet_layer = base_img.copy()
+    pytoshop_base_layer = pil_to_psd_layer(base_sheet_layer, "送审单模板与底格", 0, 0)
+
             
     # 6. 计算鞋位网格与标贴缓存
     num_shoes = len(task.shoes)
@@ -2127,20 +2133,45 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     out_psd_filename = f"{sku_part}_{date_part}_{timestamp}.psd"
     out_psd_filepath = OUTPUT_DIR / out_psd_filename
     has_psd = False
-    
-    has_psd = export_photoshop_native_psd(
-        out_psd_filepath,
-        task,
-        tmpl_cfg,
-        temp_lines_path,
-        custom_logo_path,
-        head_logo_info,
-        shoes_render_info,
-        num_shoes
-    )
-    
+
+    # 原生 Pytoshop 极速分层 PSD 写入 (毫秒级直出)
+    if HAS_PYTOSHOP:
+        try:
+            t_psd0 = time.time()
+            all_psd_layers = []
+            if pytoshop_base_layer:
+                all_psd_layers.append(pytoshop_base_layer)
+            if pytoshop_groups:
+                all_psd_layers.extend(pytoshop_groups)
+            
+            if all_psd_layers:
+                psd_doc = nested_layers.nested_layers_to_psd(
+                    all_psd_layers,
+                    color_mode=enums.ColorMode.rgb,
+                    compression=enums.Compression.raw
+                )
+                with open(out_psd_filepath, "wb") as f_psd:
+                    psd_doc.write(f_psd)
+                has_psd = True
+                print(f"[Render] Pytoshop 极速生成原生分层 PSD 成功 (耗时: {time.time()-t_psd0:.3f}s): {out_psd_filepath}")
+        except Exception as ex_psd:
+            print(f"[Render] Pytoshop 生成 PSD 失败: {ex_psd}")
+            has_psd = False
+
     if not has_psd:
-        print("[Render] 本机未检测到运行中的 Adobe Photoshop，跳过生成原生 TypeLayer PSD，仅交付 300DPI 印刷大图。")
+        try:
+            has_psd = export_photoshop_native_psd(
+                out_psd_filepath,
+                task,
+                tmpl_cfg,
+                temp_lines_path,
+                custom_logo_path,
+                head_logo_info,
+                shoes_render_info,
+                num_shoes
+            )
+        except Exception as ex_com:
+            print(f"[Render] Photoshop COM 降级失败: {ex_com}")
             
     return {
         "status": "success",
@@ -2204,6 +2235,42 @@ def save_system_settings(req: Dict[str, Any]):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"目录无效或无权创建: {e}")
     return {"status": "success", "output_dir": str(OUTPUT_DIR.resolve())}
+
+def ask_directory_dialog(initial_dir=None):
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        folder = filedialog.askdirectory(
+            parent=root,
+            initialdir=initial_dir or str(OUTPUT_DIR),
+            title="选择成品大图与 PSD 输出存储目录"
+        )
+        root.destroy()
+        return folder
+    except Exception as e:
+        print(f"[Settings] ask_directory error: {e}")
+        return ""
+
+@app.post("/api/settings/choose-folder")
+async def choose_output_folder_dialog():
+    global OUTPUT_DIR
+    import asyncio
+    import concurrent.futures
+    loop = asyncio.get_event_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        folder = await loop.run_in_executor(pool, ask_directory_dialog, str(OUTPUT_DIR))
+    if folder:
+        p = Path(folder)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            OUTPUT_DIR = p
+            return {"status": "success", "output_dir": str(OUTPUT_DIR.resolve())}
+        except Exception as e:
+            return {"status": "error", "detail": str(e), "output_dir": str(OUTPUT_DIR.resolve())}
+    return {"status": "cancelled", "output_dir": str(OUTPUT_DIR.resolve())}
 
 @app.get("/api/open-folder")
 @app.post("/api/open-folder")

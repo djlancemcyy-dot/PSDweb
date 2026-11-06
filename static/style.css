@@ -3680,3 +3680,23 @@ body.qz-app {
 .canvas-scroll-container.panning, .qz-stage-viewport.panning {
   cursor: grabbing !important;
 }
+
+/* Hand Tool Mode Styles */
+.hand-tool-active,
+.hand-tool-active *,
+.hand-tool-active #sheet-stage,
+.hand-tool-active .sheet-base-bg,
+.hand-tool-active .table-lines-svg {
+  cursor: grab !important;
+}
+.hand-tool-active.panning,
+.hand-tool-active.panning *,
+.hand-tool-active.panning #sheet-stage,
+.hand-tool-active.panning .sheet-base-bg {
+  cursor: grabbing !important;
+}
+.zoom-stepper-btn.active {
+  background: var(--brand-primary, #059669) !important;
+  color: #ffffff !important;
+  border-color: var(--brand-primary, #059669) !important;
+}

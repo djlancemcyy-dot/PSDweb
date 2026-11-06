@@ -232,6 +232,7 @@
           <button class="zoom-stepper-btn" id="btn-zoom-in" title="放大视口">➕</button>
           <button class="zoom-stepper-btn btn-zoom-preset" id="btn-zoom-100" title="100% 原始大小">1:1</button>
           <button class="zoom-stepper-btn btn-zoom-preset" id="btn-zoom-fit" title="自适应窗口大小">适应</button>
+          <button class="zoom-stepper-btn" id="btn-toggle-hand-tool" title="抓手拖动画板 (快捷键: 空格键 / H)">✋ 抓手</button>
         </div>
 
         <!-- Sleek Quick Guide Popover Dropdown (取代占位长文字) -->
@@ -415,6 +416,7 @@
         </div>
       </div>
     </main>
+  </div> <!-- /qz-workspace -->
 
     <!-- 3. Bottom Unified Drawer: 款式颜色 (左区，支持自适应双行) + 素材库 (右区，支持分类/多选/拖拽) -->
   <footer class="qz-bottom-drawer" id="bottom-drawer">
@@ -755,43 +757,55 @@
     </div>
   </div>
 
-  <!-- Modal: System Settings & Path Config Modal (设置成品存储目录) -->
+  <!-- Modal: System Settings & Output Path Config Modal (纯净输出目录配置，支持自由选盘与路径) -->
   <div class="qz-modal" id="modal-settings">
-    <div class="qz-modal-box modal-md">
+    <div class="qz-modal-box modal-md" style="max-width: 600px;">
       <div class="qz-modal-head">
-        <div class="modal-head-title">⚙️ 系统设置与成品存储目录</div>
+        <div class="modal-head-title">⚙️ 成品大图与 PSD 输出存储目录</div>
         <button class="modal-close-btn" id="btn-close-settings-modal">✕</button>
       </div>
-      <div class="qz-modal-body">
+      <div class="qz-modal-body" style="padding: 20px;">
         <div class="form-row">
-          <label class="qz-label">当前成品大图与 PSD 输出目录</label>
-          <div class="input-with-action">
-            <input type="text" id="settings-output-dir" class="qz-input" readonly>
-            <button class="qz-btn qz-btn-secondary" id="btn-copy-output-path">复制路径</button>
+          <label class="qz-label" style="font-weight: 700; font-size: 13px; margin-bottom: 8px; display: block;">
+            📁 成品文件输出物理路径（本地硬盘或局域网共享盘）
+          </label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="settings-output-dir" class="qz-input" style="flex: 1; font-family: monospace; font-size: 12px;" placeholder="如 D:\送审单成品 或 C:\Users\...\output">
+            <button class="qz-btn qz-btn-primary" id="btn-browse-output-dir" style="white-space: nowrap;">📂 浏览选择</button>
+            <button class="qz-btn qz-btn-secondary" id="btn-copy-output-path" style="white-space: nowrap;">📋 复制</button>
           </div>
-          <div class="form-hint-text">💡 生成的 300DPI JPEG 印刷送审大图及 Photoshop 原生分层 PSD 工程文件均存放于此。</div>
+          <div class="form-hint-text" style="margin-top: 10px; line-height: 1.6; color: var(--text-muted); font-size: 12px;">
+            💡 生成的 300DPI 高清印刷送审大图及分层 PSD 工程文件将自动存储至此目录。点击【浏览选择】可调起系统窗口自由选定文件夹。
+          </div>
         </div>
+      </div>
+      <div class="qz-modal-foot" style="justify-content: space-between;">
+        <button class="qz-btn qz-btn-secondary" id="btn-open-dir-from-settings">📂 在资源管理器中打开</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="qz-btn qz-btn-secondary" id="btn-close-settings">取消</button>
+          <button class="qz-btn qz-btn-primary" id="btn-save-settings">💾 保存输出目录</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-        <div class="form-divider" style="margin: 16px 0; border-top: 1px solid var(--border-light);"></div>
-
-        <div class="form-row">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-            <label class="qz-label" style="font-weight: 700; font-size: 13px; color: var(--text-main);">
-              🎨 AI 离线抠图模型选择（按鞋样材质与场景切换）
-            </label>
-            <span style="font-size: 11px; color: var(--brand-primary); font-weight: 600;">⚡ 实时热切换·零等待</span>
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
-            系统已内置 4 套纯本地离线深度模型，可根据面料特性（如光面皮、反绒毛面、网布）自由选配：
-          </div>
-          <div class="model-cards-grid" id="settings-model-cards-grid">
-            <!-- Populated dynamically by JS with rich Chinese scenario annotations -->
-          </div>
+  <!-- Modal: Dedicated AI Cutout Model Switcher (专为颜色上方菜单栏【🎨 抠图模型】服务，清晰解耦) -->
+  <div class="qz-modal" id="modal-cutout-models">
+    <div class="qz-modal-box modal-md" style="max-width: 680px;">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">🎨 切换 AI 离线抠图模型</div>
+        <button class="modal-close-btn" id="btn-close-models-modal">✕</button>
+      </div>
+      <div class="qz-modal-body" style="padding: 16px;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          系统内置 4 套纯本地离线深度模型，可根据面料特性（如光面皮、反绒毛面、网布）自由选配：
+        </div>
+        <div class="model-cards-grid" id="settings-model-cards-grid">
+          <!-- Populated dynamically by JS -->
         </div>
       </div>
       <div class="qz-modal-foot">
-        <button class="qz-btn qz-btn-secondary" id="btn-close-settings">关闭</button>
-        <button class="qz-btn qz-btn-primary" id="btn-open-dir-from-settings">📁 立即在资源管理器中打开</button>
+        <button class="qz-btn qz-btn-primary" id="btn-close-models-foot">完成</button>
       </div>
     </div>
   </div>

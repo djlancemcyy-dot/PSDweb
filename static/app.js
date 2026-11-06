@@ -3786,7 +3786,7 @@ function setupSyncLogosToAllColors() {
   };
 }
 
-// 2. Free Canvas Pan & Grab Gesture Navigation (Item 4)
+// 2. Free Canvas Pan & Grab Gesture Navigation (Item 4 + Hand Tool)
 function setupCanvasPanAndZoom() {
   const scrollContainer = document.getElementById("canvas-scroll-container");
   const viewport = document.getElementById("canvas-viewport");
@@ -3798,10 +3798,26 @@ function setupCanvasPanAndZoom() {
 
   state.pan_x = 0;
   state.pan_y = 0;
+  state.hand_tool_mode = false;
   let isPanning = false;
   let startX = 0, startY = 0;
   let startPanX = 0, startPanY = 0;
   let spacePressed = false;
+
+  const btnHandTool = document.getElementById("btn-toggle-hand-tool");
+  const updateHandToolUI = () => {
+    if (btnHandTool) btnHandTool.classList.toggle("active", state.hand_tool_mode);
+    if (targetContainer) targetContainer.classList.toggle("hand-tool-active", state.hand_tool_mode);
+    if (stage) stage.classList.toggle("hand-tool-active", state.hand_tool_mode);
+  };
+
+  if (btnHandTool) {
+    btnHandTool.onclick = () => {
+      state.hand_tool_mode = !state.hand_tool_mode;
+      updateHandToolUI();
+      showToast(state.hand_tool_mode ? "✋ 已开启抓手拖动模式（按住鼠标拖动画板任意位置）" : "↖️ 已恢复选择编辑模式");
+    };
+  }
 
   const applyPan = () => {
     scaleContainer.style.transform = `translate(${state.pan_x}px, ${state.pan_y}px)`;
@@ -3811,6 +3827,11 @@ function setupCanvasPanAndZoom() {
     if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
       spacePressed = true;
       targetContainer.classList.add("can-pan");
+    }
+    if (e.key.toLowerCase() === "h" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+      state.hand_tool_mode = !state.hand_tool_mode;
+      updateHandToolUI();
+      showToast(state.hand_tool_mode ? "✋ 抓手拖动模式" : "↖️ 选择编辑模式");
     }
   });
 
@@ -3823,11 +3844,25 @@ function setupCanvasPanAndZoom() {
 
   // Mousedown for grab pan & blank area deselect
   targetContainer.addEventListener("mousedown", (e) => {
+    if (state.hand_tool_mode || spacePressed || e.button === 1) {
+      isPanning = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startPanX = state.pan_x;
+      startPanY = state.pan_y;
+      targetContainer.style.cursor = "grabbing";
+      targetContainer.classList.add("panning");
+      e.preventDefault();
+      return;
+    }
+
     const isInteractive = e.target.closest(".stage-shoe-wrapper") || 
                           e.target.closest(".stage-logo-element") || 
                           e.target.closest(".stage-canvas-logo") || 
                           e.target.closest(".stage-header-logo-box") || 
-                          e.target.closest(".dyn-text") ||
+                          e.target.closest(".left-row-lbl") ||
+                          e.target.closest(".left-row-val") ||
+                          e.target.closest(".canvas-editable-text") ||
                           e.target.closest("button") || 
                           e.target.closest("input");
 
@@ -3851,18 +3886,6 @@ function setupCanvasPanAndZoom() {
       targetContainer.classList.add("panning");
       e.preventDefault();
       return;
-    }
-
-    // Middle click or space pressed initiates pan anywhere
-    if (e.button === 1 || spacePressed) {
-      isPanning = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      startPanX = state.pan_x;
-      startPanY = state.pan_y;
-      targetContainer.style.cursor = "grabbing";
-      targetContainer.classList.add("panning");
-      e.preventDefault();
     }
   });
 
@@ -4387,15 +4410,16 @@ function setupFocusedProductEdit() {
   if (btnCancel) btnCancel.onclick = exitEdit;
 }
 
-// 7. System Settings Modal & Open Folder (Item 17)
+// 7. System Settings Modal & Output Folder Picker
 function setupSettingsAndFolderModal() {
   const modal = document.getElementById("modal-settings");
   const btnOpenSettings = document.getElementById("btn-open-settings");
   const btnClose = document.getElementById("btn-close-settings-modal");
-  const btnCloseFoot = document.getElementById("btn-close-settings-foot");
+  const btnCloseCancel = document.getElementById("btn-close-settings");
   const btnSave = document.getElementById("btn-save-settings");
   const btnCopy = document.getElementById("btn-copy-output-path");
-  const btnOpenFolderModal = document.getElementById("btn-open-folder-modal");
+  const btnBrowse = document.getElementById("btn-browse-output-dir");
+  const btnOpenDir = document.getElementById("btn-open-dir-from-settings");
   const btnOpenFolderTop = document.getElementById("btn-open-folder");
   const inputPath = document.getElementById("settings-output-dir");
 
@@ -4418,7 +4442,42 @@ function setupSettingsAndFolderModal() {
     };
   }
   if (btnClose) btnClose.onclick = () => modal.classList.remove("show");
-  if (btnCloseFoot) btnCloseFoot.onclick = () => modal.classList.remove("show");
+  if (btnCloseCancel) btnCloseCancel.onclick = () => modal.classList.remove("show");
+
+  if (btnBrowse && inputPath) {
+    btnBrowse.onclick = async () => {
+      try {
+        btnBrowse.disabled = true;
+        btnBrowse.textContent = "⏳ 选择中...";
+        const res = await fetch("/api/settings/choose-folder", { method: "POST" });
+        const data = await res.json();
+        if (data.status === "success" && data.output_dir) {
+          inputPath.value = data.output_dir;
+          showToast(`📁 已选定输出目录：${data.output_dir}`);
+        }
+      } catch (err) {
+        showToast(`选择目录失败: ${err.message}`);
+      } finally {
+        btnBrowse.disabled = false;
+        btnBrowse.textContent = "📂 浏览选择";
+      }
+    };
+  }
+
+  if (btnCopy && inputPath) {
+    btnCopy.onclick = () => {
+      navigator.clipboard.writeText(inputPath.value).then(() => {
+        showToast("📋 成品物理路径已复制！");
+      });
+    };
+  }
+
+  if (btnOpenDir) {
+    btnOpenDir.onclick = async () => {
+      const p = inputPath ? inputPath.value.trim() : "";
+      await fetch(`/api/open-folder?path=${encodeURIComponent(p)}`, { method: "POST" });
+    };
+  }
 
   if (btnOpenFolderTop) {
     btnOpenFolderTop.onclick = async () => {
@@ -4428,21 +4487,6 @@ function setupSettingsAndFolderModal() {
       } catch (err) {
         showToast(`打开失败: ${err.message}`);
       }
-    };
-  }
-
-  if (btnOpenFolderModal) {
-    btnOpenFolderModal.onclick = async () => {
-      const p = inputPath ? inputPath.value.trim() : "";
-      await fetch(`/api/open-folder?path=${encodeURIComponent(p)}`, { method: "POST" });
-    };
-  }
-
-  if (btnCopy && inputPath) {
-    btnCopy.onclick = () => {
-      navigator.clipboard.writeText(inputPath.value).then(() => {
-        showToast("📋 成品物理路径已复制！");
-      });
     };
   }
 
@@ -4458,6 +4502,8 @@ function setupSettingsAndFolderModal() {
         if (data.status === "success") {
           showToast(`⚙️ 物理目录已更新：${data.output_dir}`);
           modal.classList.remove("show");
+        } else {
+          showToast(data.detail || "保存失败");
         }
       } catch (err) {
         showToast(`保存失败: ${err.message}`);
@@ -4831,6 +4877,17 @@ async function selectCutoutModel(modelId) {
 }
 
 function setupQuickModelSelectorButton() {
+  const modelModal = document.getElementById("modal-cutout-models");
+  const btnCloseModal = document.getElementById("btn-close-models-modal");
+  const btnCloseFoot = document.getElementById("btn-close-models-foot");
+
+  if (btnCloseModal && modelModal) {
+    btnCloseModal.onclick = () => modelModal.classList.remove("show");
+  }
+  if (btnCloseFoot && modelModal) {
+    btnCloseFoot.onclick = () => modelModal.classList.remove("show");
+  }
+
   const btns = [
     document.getElementById("btn-quick-model-select"),
     document.getElementById("btn-quick-model-select-bottom")
@@ -4838,12 +4895,9 @@ function setupQuickModelSelectorButton() {
   btns.forEach(btn => {
     if (btn) {
       btn.onclick = () => {
-        const modal = document.getElementById("modal-settings");
-        if (modal) {
-          modal.classList.add("show");
+        if (modelModal) {
+          modelModal.classList.add("show");
           loadCutoutModels();
-          const grid = document.getElementById("settings-model-cards-grid");
-          if (grid) grid.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       };
     }
