@@ -50,5 +50,8 @@
     "fabrics": "面料:",
     "soles": "鞋底:"
   },
-  "is_custom": false
+  "is_custom": false,
+  "logo_scale": 1.35,
+  "logo_x": 0,
+  "logo_y": 0
 }

@@ -209,20 +209,14 @@
         <div class="bar-separator"></div>
 
         <div class="bar-ai-actions">
-          <button class="bar-action-btn" id="btn-ai-layout" title="根据当前鞋子数量（1~15）自动计算最优均分网格">
-            <span>✨</span> AI 鞋样排版
+          <button class="bar-action-btn" id="btn-ai-layout" title="点击切换标准排版模版（四宫格/双色纵向/品字）或应用自定义模版">
+            <span>✨</span> AI 鞋样排版 ▾
           </button>
           <button class="bar-action-btn btn-accent-cyan" id="btn-auto-layout-logos" title="自动将鞋面标贴规整到鞋舌口/侧腰标准工业位置">
             <span>🏷️</span> 标贴智能排版
           </button>
           <button class="bar-action-btn btn-accent-gold" id="btn-sync-logos-all" title="将第1双鞋上调好的标贴位置、大小与旋转一键同步应用到所有配色">
             <span>⚡</span> 同步首款标贴到全色
-          </button>
-          <button class="bar-action-btn" id="btn-batch-cutout" title="对当前款式中未抠图的照片一键批量离线去底">
-            <span>✂️</span> 批量去底抠图
-          </button>
-          <button class="bar-action-btn btn-accent-cyan" id="btn-quick-model-select" title="点击切换当前 AI 抠图模型与适用场景">
-            <span>🎨</span> <span id="quick-model-badge">鞋靴送审专精</span> ▾
           </button>
           <button class="bar-action-btn btn-accent-purple" id="btn-toggle-edit-template" title="点击编辑底表表头：修改工厂/样品单名称，更换品牌主LOGO">
             <span>✏️</span> 编辑底表模版
@@ -422,92 +416,106 @@
       </div>
     </main>
 
-    <!-- Right-Side Floating Material Library Drawer (悬挂式侧边抽屉，可展开与收起) -->
-    <aside class="materials-drawer" id="materials-drawer">
-      <div class="drawer-handle" id="btn-toggle-materials-drawer" title="点击展开/收纳标贴素材库">
-        <span class="drawer-handle-icon">🎨</span>
-        <span class="drawer-handle-text">标贴图案库</span>
-        <span class="drawer-badge" id="materials-count-badge">112</span>
-      </div>
-      <div class="drawer-content">
-        <div class="drawer-header">
-          <div class="drawer-title-row">
-            <span class="drawer-title">标贴与图案素材库</span>
-            <span class="drawer-count-chip" id="drawer-total-count">112款</span>
-          </div>
-          <div class="drawer-header-actions">
-            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-import-pdf-drawer" title="从本地 PDF 提取矢量标贴">📂 导入PDF</button>
-            <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-open-add-logo-drawer" title="上传或粘贴新标贴">➕ 上传</button>
-            <button class="btn-drawer-close" id="btn-close-materials-drawer" title="收起素材库">✕</button>
-          </div>
-        </div>
-        <div class="drawer-search-row">
-          <input type="text" id="drawer-logo-search" placeholder="🔍 搜索编号/名称 (如 001, 22SS, 草书)..." class="drawer-search-input">
-        </div>
-        <div class="drawer-cat-tabs" id="drawer-cat-tabs">
-          <button class="drawer-tab-btn active" data-cat="all">全部 (112)</button>
-          <button class="drawer-tab-btn" data-cat="core">常用核心标</button>
-          <button class="drawer-tab-btn" data-cat="pdf">22SS官方库 (108)</button>
-          <button class="drawer-tab-btn" data-cat="custom">自定义</button>
-        </div>
-        <div class="drawer-logos-scroll" id="drawer-logos-grid">
-          <!-- Dynamic high-res grid of 112 logos populated by JS -->
-        </div>
-      </div>
-    </aside>
-
-  </div>
-
-  <!-- 3. Bottom Functional Drawer: [方案 B] 多配色纯净画卷 + 快捷工具岛 -->
+    <!-- 3. Bottom Unified Drawer: 款式颜色 (左区，支持自适应双行) + 素材库 (右区，支持分类/多选/拖拽) -->
   <footer class="qz-bottom-drawer" id="bottom-drawer">
-    <!-- Drawer Toggle Header -->
+    <!-- Dual-Pane Top Action Bar -->
     <div class="drawer-header-bar">
-      <div class="drawer-title-group">
-        <span class="drawer-title">🎨 款式颜色画卷</span>
-        <span class="drawer-count-badge" id="shoe-count-tag">0 / 15 款</span>
-        <span class="drawer-sub-tip">点击卡片选色 · 悬浮操作 · 支持直接按 Ctrl+V 粘贴新图</span>
+      <!-- Left: Shoe Colors & Cutout Controls -->
+      <div class="drawer-left-header">
+        <div class="drawer-title-group">
+          <span class="drawer-title">👟 款式颜色</span>
+          <span class="drawer-count-badge" id="shoe-count-tag">0 / 15 款</span>
+        </div>
+        <div class="drawer-cutout-actions">
+          <button class="bar-action-btn qz-btn-sm" id="btn-single-cutout" title="对当前选中的这双鞋进行高精智能去底">
+            <span>✂️</span> 单张抠图
+          </button>
+          <button class="bar-action-btn qz-btn-sm" id="btn-batch-cutout-bottom" title="一键对所有未去底的鞋款批量去底">
+            <span>⚡</span> 批量抠图
+          </button>
+          <button class="bar-action-btn qz-btn-sm btn-accent-cyan" id="btn-quick-model-select" title="点击切换当前 AI 离线抠图模型">
+            <span>🎨</span> 抠图模型: <span id="quick-model-badge">ISNet 1024</span> ▾
+          </button>
+        </div>
       </div>
 
-      <div class="drawer-toggle-wrap">
-        <button class="btn-drawer-collapse" id="btn-toggle-drawer" title="收起/展开底部功能区">
-          <span id="drawer-collapse-icon">▼</span>
-        </button>
+      <!-- Right: Material Library Controls -->
+      <div class="drawer-right-header">
+        <div class="drawer-title-group">
+          <span class="drawer-title">🎨 素材库</span>
+          <span class="drawer-count-badge" id="materials-count-badge">0 款</span>
+        </div>
+        <div class="drawer-material-actions">
+          <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-import-material-unified" title="选择图片文件或文件夹一键导入素材库">
+            <span>📂</span> 导入素材
+          </button>
+          <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-toggle-batch-mode" title="开启多选批量移动或删除">
+            <span>☑️</span> 批量管理
+          </button>
+          <button class="btn-drawer-collapse" id="btn-toggle-drawer" title="收起/展开底部功能区">
+            <span id="drawer-collapse-icon">▼</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Drawer Content Body (Pure Filmstrip + Quick Action Island) -->
+    <!-- Dual-Pane Drawer Content Body -->
     <div class="drawer-content-body" id="drawer-content-body">
       
-      <!-- Sub-panel 1: Quick Upload Dropzone -->
-      <div class="drawer-upload-pane">
-        <div class="qz-dropzone" id="upload-dropzone" title="点击或拖入照片，亦可直接按 Ctrl+V 粘贴">
-          <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
-          <div class="dropzone-icon">📷</div>
-          <div class="dropzone-text"><strong>点击上传</strong> / 拖入照片</div>
-          <div class="dropzone-hint">⚡ 支持 Ctrl+V 粘贴</div>
+      <!-- Left Zone: Shoe Color Cards Filmstrip (Auto 2-Rows on Overflow) -->
+      <div class="drawer-colors-section" id="drawer-colors-section">
+        <!-- Upload Dropzone -->
+        <div class="drawer-upload-pane">
+          <div class="qz-dropzone" id="upload-dropzone" title="点击或拖入照片，亦可直接按 Ctrl+V 粘贴">
+            <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+            <div class="dropzone-icon">📷</div>
+            <div class="dropzone-text"><strong>点击上传</strong>/拖入照片</div>
+            <div class="dropzone-hint">⚡ 支持 Ctrl+V 粘贴</div>
+          </div>
+        </div>
+
+        <!-- Shoe Cards Horizontal Grid (Supports 2 Rows Wrapping) -->
+        <div class="drawer-colors-track-wrap">
+          <div class="colors-wrap-grid" id="shoe-list">
+            <!-- Populated by JS -->
+          </div>
         </div>
       </div>
 
-      <!-- Sub-panel 2: Generous Horizontal Scrolling Shoe Color Cards -->
-      <div class="drawer-colors-pane">
-        <div class="colors-horizontal-track" id="shoe-list">
-          <!-- Dynamically populated shoe cards with hover action bar -->
-        </div>
-      </div>
+      <!-- Divider between Colors and Material Library -->
+      <div class="drawer-v-divider"></div>
 
-      <!-- Sub-panel 3: Quick Action Island (方案 B 右端工具岛) -->
-      <div class="colors-quick-island" id="colors-quick-island">
-        <div class="island-title">快捷操作台</div>
-        <div class="island-buttons">
-          <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-batch-cutout-bottom" title="一键将本款所有照片去底">
-            <span>✂️</span> 一键去底
-          </button>
-          <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-batch-rename-bottom" title="快速批量命名配色">
-            <span>🏷️</span> 颜色快配
-          </button>
-          <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-quick-hide-bottom" title="收起底栏，让画板垂直空间最大化">
-            <span>🔽</span> 收起底栏
-          </button>
+      <!-- Right Zone: Material Library (Categories + Search + Grid + Batch Bar) -->
+      <div class="drawer-material-section" id="drawer-material-section">
+        <div class="mat-section-top">
+          <!-- Dynamic Category Tabs -->
+          <div class="drawer-cat-tabs" id="drawer-cat-tabs">
+            <!-- Populated by JS: All, Core, 22SS, Custom + [➕ 新增分类] -->
+          </div>
+          <!-- Search Bar -->
+          <div class="mat-search-wrap">
+            <input type="text" id="drawer-logo-search" placeholder="🔍 搜索素材名称..." class="drawer-search-input">
+          </div>
+        </div>
+
+        <!-- Batch Action Toolbar (Visible when in batch mode) -->
+        <div class="mat-batch-bar" id="mat-batch-bar" style="display: none;">
+          <label class="batch-select-all-label">
+            <input type="checkbox" id="mat-batch-check-all"> 全选本页
+          </label>
+          <span class="batch-selected-count" id="mat-batch-count-text">已选中 0 款</span>
+          <div class="batch-actions-group">
+            <select id="mat-batch-move-select" class="qz-input qz-input-sm" style="width: 130px; font-size: 11px;">
+              <option value="">移动至分组...</option>
+            </select>
+            <button class="qz-btn qz-btn-danger qz-btn-xs" id="btn-mat-batch-delete">🗑️ 批量删除</button>
+            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-mat-batch-cancel">退出多选</button>
+          </div>
+        </div>
+
+        <!-- Material Logos Grid -->
+        <div class="drawer-logos-scroll" id="drawer-logos-grid">
+          <!-- Populated by JS with checkerboard transparent preview & drag handles -->
         </div>
       </div>
 
@@ -691,45 +699,6 @@
     </div>
   </div>
 
-  <!-- Modal 5: Add New Logo Template Modal -->
-  <div class="qz-modal" id="modal-add-logo">
-    <div class="qz-modal-box modal-md">
-      <div class="qz-modal-head">
-        <div class="modal-head-title">➕ 上传新增标贴模版</div>
-        <button class="modal-close-btn" id="btn-close-add-logo-modal">✕</button>
-      </div>
-      <div class="qz-modal-body">
-        <div class="form-row">
-          <label class="qz-label">标贴名称 *</label>
-          <input type="text" id="input-new-logo-name" class="qz-input" placeholder="如 2026侧腰字母烫印标 / 鞋舌皮标">
-        </div>
-        <div class="form-row">
-          <label class="qz-label">标贴用途角色说明</label>
-          <input type="text" id="input-new-logo-role" class="qz-input" placeholder="如 鞋面/侧身标、后跟大标、织带副标">
-        </div>
-        <div class="form-row">
-          <label class="qz-label">推荐标准排版槽位</label>
-          <select id="select-new-logo-type" class="qz-input">
-            <option value="tongue">鞋舌口主标 (Slot 1 - 鞋舌织唛标位置)</option>
-            <option value="side" selected>鞋面侧腰标 (Slot 2 - 鞋腰正侧中部位置)</option>
-            <option value="heel">后跟侧后大标 (Slot 3 - 鞋帮后跟处)</option>
-            <option value="strap">鞋领织带/侧后副标 (Slot 4 - 领口斜上方)</option>
-            <option value="toe">鞋头/大底侧边标 (Slot 5 - 鞋头侧包边)</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <label class="qz-label">选择标贴图片 (支持透明PNG / JPG) *</label>
-          <input type="file" id="input-new-logo-file" accept="image/*" class="qz-input-file">
-          <div class="form-hint-text">💡 建议使用透明底 PNG 文件，JPG 图片将自动进行去白底处理。</div>
-        </div>
-      </div>
-      <div class="qz-modal-foot">
-        <button class="qz-btn qz-btn-secondary" id="btn-cancel-add-logo">取消</button>
-        <button class="qz-btn qz-btn-primary" id="btn-confirm-add-logo">上传并加入标贴箱</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Modal 6: Edit Logo Template Modal -->
   <div class="qz-modal" id="modal-edit-logo">
     <div class="qz-modal-box modal-sm">
@@ -861,6 +830,67 @@
   </div>
 
   <!-- Global Toast Notification -->
+  
+  <!-- Modal: High-Res Cutout vs Raw Image Comparison Preview -->
+  <div class="qz-modal" id="modal-cutout-preview">
+    <div class="qz-modal-box modal-lg" style="max-width: 920px;">
+      <div class="qz-modal-head">
+        <div class="modal-head-title" id="cutout-preview-title">👁️ 智能去底效果高清对比</div>
+        <button class="modal-close-btn" id="btn-close-cutout-preview">✕</button>
+      </div>
+      <div class="qz-modal-body" style="padding: 16px;">
+        <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center; justify-content: space-between;">
+          <div style="font-size: 14px; font-weight: 700; color: var(--text-main);" id="cutout-preview-color-label">配色名称</div>
+          <div style="font-size: 12px; color: var(--text-muted);">提示：可清晰检查反绒毛边、鞋底齿纹与鞋带边缘去底质量</div>
+        </div>
+        <div id="cutout-preview-container" style="display: flex; gap: 16px; justify-content: center; align-items: center; min-height: 420px; background: var(--bg-canvas-wrap); border-radius: 8px; padding: 12px; overflow: hidden;">
+          <div style="flex: 1; text-align: center;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">📷 原图</div>
+            <div style="background: #ffffff; border-radius: 6px; padding: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: 380px;">
+              <img id="cutout-preview-raw-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+          </div>
+          <div style="flex: 1; text-align: center;">
+            <div style="font-size: 12px; font-weight: 600; color: var(--brand-primary); margin-bottom: 6px;">✨ 去底图 (透明底)</div>
+            <div class="checkerboard-bg" style="border-radius: 6px; padding: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; height: 380px;">
+              <img id="cutout-preview-cut-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="qz-modal-foot" style="justify-content: space-between;">
+        <button class="qz-btn qz-btn-secondary" id="btn-recutout-from-preview">🔄 换模型重新去底</button>
+        <button class="qz-btn qz-btn-primary" id="btn-close-cutout-preview-foot">确定完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: AI Layout Templates & Custom Layout Presets -->
+  <div class="qz-modal" id="modal-layout-templates">
+    <div class="qz-modal-box modal-md" style="max-width: 680px;">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">📐 AI 鞋样排版模版库</div>
+        <button class="modal-close-btn" id="btn-close-layout-modal">✕</button>
+      </div>
+      <div class="qz-modal-body" style="padding: 16px;">
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          支持即时选用行业标准版式，亦可将当前调好的网格与鞋位一键保存为模版随时调用：
+        </div>
+        <div id="layout-templates-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto;">
+          <!-- Dynamically populated by JS -->
+        </div>
+      </div>
+      <div class="qz-modal-foot" style="justify-content: space-between;">
+        <button class="qz-btn qz-btn-primary" id="btn-save-cur-layout-as-tmpl">💾 将当前排版存为新模版</button>
+        <button class="qz-btn qz-btn-secondary" id="btn-close-layout-modal-foot">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden Multi-file and Folder Picker for Materials -->
+  <input type="file" id="material-multi-file-input" multiple accept="image/*,.pdf" style="display: none;">
+  <input type="file" id="material-folder-input" webkitdirectory directory multiple style="display: none;">
+
   <div class="toast-chip" id="global-toast">已复制</div>
 
   <script src="/static/app.js"></script>

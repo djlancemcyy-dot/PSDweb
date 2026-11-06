@@ -127,6 +127,73 @@ def save_logos_db(logos: List[Dict[str, Any]]):
     with open(LOGOS_FILE, "w", encoding="utf-8") as f:
         json.dump(logos, f, ensure_ascii=False, indent=2)
 
+# --- Logo Categories DB ---
+LOGO_CATEGORIES_FILE = DATA_DIR / "logo_categories.json"
+DEFAULT_CATEGORIES = ["常用核心标", "22SS官方库", "鞋身标", "鞋舌标", "大底图案", "自定义"]
+
+def load_categories() -> List[str]:
+    if not LOGO_CATEGORIES_FILE.exists():
+        with open(LOGO_CATEGORIES_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CATEGORIES, f, ensure_ascii=False, indent=2)
+        return list(DEFAULT_CATEGORIES)
+    try:
+        with open(LOGO_CATEGORIES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else list(DEFAULT_CATEGORIES)
+    except Exception:
+        return list(DEFAULT_CATEGORIES)
+
+def save_categories(cats: List[str]):
+    with open(LOGO_CATEGORIES_FILE, "w", encoding="utf-8") as f:
+        json.dump(cats, f, ensure_ascii=False, indent=2)
+
+# --- Custom Layout Templates DB ---
+LAYOUT_TEMPLATES_FILE = DATA_DIR / "layout_templates.json"
+DEFAULT_LAYOUT_TEMPLATES = [
+    {
+        "id": "tmpl_grid_4",
+        "name": "四宫格标准 (3~4色推荐)",
+        "desc": "标准 2×2 四宫格，3 色填左上、右上、左下，4 色填满四格",
+        "slots_map": {
+            "2": [{"cx": 1510, "cy": 1060}, {"cx": 1510, "cy": 1830}],
+            "3": [{"cx": 1510, "cy": 1060}, {"cx": 2720, "cy": 1060}, {"cx": 1510, "cy": 1830}],
+            "4": [{"cx": 1510, "cy": 1060}, {"cx": 2720, "cy": 1060}, {"cx": 1510, "cy": 1830}, {"cx": 2720, "cy": 1830}]
+        }
+    },
+    {
+        "id": "tmpl_vertical_2",
+        "name": "双色左列纵向 (2色标准)",
+        "desc": "左列上下排布，右侧留白展示工艺或备用",
+        "slots_map": {
+            "2": [{"cx": 1510, "cy": 1060}, {"cx": 1510, "cy": 1830}]
+        }
+    },
+    {
+        "id": "tmpl_tri_center_3",
+        "name": "品字形居中 (3色对称)",
+        "desc": "上方左右 2 款，下方居中 1 款",
+        "slots_map": {
+            "3": [{"cx": 1550, "cy": 1150}, {"cx": 2750, "cy": 1150}, {"cx": 2150, "cy": 1850}]
+        }
+    }
+]
+
+def load_layout_templates() -> List[Dict[str, Any]]:
+    if not LAYOUT_TEMPLATES_FILE.exists():
+        with open(LAYOUT_TEMPLATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_LAYOUT_TEMPLATES, f, ensure_ascii=False, indent=2)
+        return list(DEFAULT_LAYOUT_TEMPLATES)
+    try:
+        with open(LAYOUT_TEMPLATES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else list(DEFAULT_LAYOUT_TEMPLATES)
+    except Exception:
+        return list(DEFAULT_LAYOUT_TEMPLATES)
+
+def save_layout_templates(tmpls: List[Dict[str, Any]]):
+    with open(LAYOUT_TEMPLATES_FILE, "w", encoding="utf-8") as f:
+        json.dump(tmpls, f, ensure_ascii=False, indent=2)
+
 TEMPLATE_CONFIG_FILE = DATA_DIR / "template_config.json"
 DEFAULT_TEMPLATE_CONFIG = {
     "title": "臻兴科技开发样品单",
@@ -370,6 +437,15 @@ class ShoeItem(BaseModel):
     scale_multiplier: float = 1.0
     logos: List[PlacedLogo] = []
 
+class CanvasLogo(BaseModel):
+    id: str
+    logo_id: str
+    file: Optional[str] = None
+    abs_x: float = 1200.0
+    abs_y: float = 1200.0
+    scale: float = 1.0
+    rotation: float = 0.0
+
 class TaskItem(BaseModel):
     id: str
     name: str = "款式任务"
@@ -382,6 +458,7 @@ class TaskItem(BaseModel):
     fabrics: str = "牛反绒"
     soles: str = "橡胶大底"
     shoes: List[ShoeItem] = []
+    canvas_logos: List[CanvasLogo] = []
 
 class TaskGroupItem(BaseModel):
     id: str
@@ -456,7 +533,9 @@ def get_initial_data():
         "fabric_presets": ["牛反绒", "猪巴+沙丁布", "反绒皮+网布", "牛皮+反绒", "超纤皮", "网布+飞织"],
         "sole_presets": ["橡胶大底", "MD大底", "橡胶+EVA", "发泡大底", "聚氨酯底", "生胶大底"],
         "logos": load_logos_db(),
-        "template_config": load_template_config()
+        "template_config": load_template_config(),
+        "categories": load_categories(),
+        "layout_templates": load_layout_templates()
     }
 
 # --- Logos Management CRUD (标贴模版管理：增删改换) ---
@@ -682,6 +761,258 @@ def delete_logo(logo_id: str):
         raise HTTPException(status_code=404, detail="标贴不存在")
     save_logos_db(new_db)
     return {"status": "success", "deleted_id": logo_id}
+
+# --- Category Management Endpoints ---
+
+@app.get("/api/logos/categories")
+def get_logo_categories_api():
+    cats = load_categories()
+    logos = load_logos_db()
+    cat_counts = {}
+    for l in logos:
+        c = l.get("category") or "未分类"
+        cat_counts[c] = cat_counts.get(c, 0) + 1
+    res = []
+    for c in cats:
+        res.append({"name": c, "count": cat_counts.get(c, 0)})
+    return {"status": "success", "categories": res}
+
+@app.post("/api/logos/categories")
+def add_logo_category_api(req: Dict[str, str]):
+    name = req.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="分类名称不能为空")
+    cats = load_categories()
+    if name not in cats:
+        cats.append(name)
+        save_categories(cats)
+    return {"status": "success", "categories": cats}
+
+@app.put("/api/logos/categories")
+def rename_logo_category_api(req: Dict[str, str]):
+    old_name = req.get("old_name", "").strip()
+    new_name = req.get("new_name", "").strip()
+    if not old_name or not new_name:
+        raise HTTPException(status_code=400, detail="分类名称不能为空")
+    cats = load_categories()
+    if old_name in cats:
+        idx = cats.index(old_name)
+        cats[idx] = new_name
+        save_categories(cats)
+    logos = load_logos_db()
+    for l in logos:
+        if l.get("category") == old_name:
+            l["category"] = new_name
+    save_logos_db(logos)
+    return {"status": "success", "categories": cats}
+
+@app.delete("/api/logos/categories")
+def delete_logo_category_api(name: str):
+    name = name.strip()
+    cats = load_categories()
+    if name in cats:
+        cats.remove(name)
+        save_categories(cats)
+    logos = load_logos_db()
+    for l in logos:
+        if l.get("category") == name:
+            l["category"] = "未分类"
+    save_logos_db(logos)
+    return {"status": "success", "categories": cats}
+
+@app.post("/api/logos/batch-delete")
+def batch_delete_logos_api(req: Dict[str, Any]):
+    ids = set(req.get("ids", []))
+    if not ids:
+        return {"status": "success", "deleted_count": 0}
+    logos = load_logos_db()
+    new_logos = [l for l in logos if l["id"] not in ids]
+    deleted_cnt = len(logos) - len(new_logos)
+    save_logos_db(new_logos)
+    return {"status": "success", "deleted_count": deleted_cnt}
+
+@app.post("/api/logos/batch-move")
+def batch_move_logos_api(req: Dict[str, Any]):
+    ids = set(req.get("ids", []))
+    target_cat = req.get("category", "未分类").strip()
+    if not ids:
+        return {"status": "success", "moved_count": 0}
+    cats = load_categories()
+    if target_cat not in cats and target_cat != "未分类":
+        cats.append(target_cat)
+        save_categories(cats)
+    logos = load_logos_db()
+    moved_cnt = 0
+    for l in logos:
+        if l["id"] in ids:
+            l["category"] = target_cat
+            moved_cnt += 1
+    save_logos_db(logos)
+    return {"status": "success", "moved_count": moved_cnt}
+
+@app.put("/api/logos/{logo_id}/rename")
+def rename_single_logo_api(logo_id: str, req: Dict[str, str]):
+    new_name = req.get("name", "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="素材名称不能为空")
+    logos = load_logos_db()
+    found = False
+    for l in logos:
+        if l["id"] == logo_id:
+            l["name"] = new_name
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="未找到素材")
+    save_logos_db(logos)
+    return {"status": "success", "logo_id": logo_id, "name": new_name}
+
+@app.post("/api/logos/upload-multiple")
+async def upload_multiple_materials_api(
+    files: List[UploadFile] = File(...),
+    category: Optional[str] = Form("自定义")
+):
+    db = load_logos_db()
+    added_items = []
+    cat_name = category or "自定义"
+    cats = load_categories()
+    if cat_name not in cats:
+        cats.append(cat_name)
+        save_categories(cats)
+
+    for file in files:
+        fname = file.filename or "upload_material"
+        ext = Path(fname).suffix.lower()
+        contents = await file.read()
+
+        if ext == ".pdf":
+            try:
+                import fitz
+                doc = fitz.open(stream=contents, filetype="pdf")
+                for p_idx in range(len(doc)):
+                    page = doc[p_idx]
+                    pix = page.get_pixmap(dpi=150)
+                    p_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
+                    arr = np.array(p_img)
+                    gray = np.mean(arr[:, :, :3], axis=2)
+                    mask = (gray < 240)
+                    if np.mean(mask) < 0.008:
+                        continue
+                    ys, xs = np.where(mask)
+                    x0 = max(0, int(xs.min()) - 6)
+                    y0 = max(0, int(ys.min()) - 6)
+                    x1 = min(p_img.width, int(xs.max()) + 6)
+                    y1 = min(p_img.height, int(ys.max()) + 6)
+                    cropped = p_img.crop((x0, y0, x1, y1))
+                    
+                    c_arr = np.array(cropped)
+                    wh_mask = (c_arr[:, :, 0] > 240) & (c_arr[:, :, 1] > 240) & (c_arr[:, :, 2] > 240)
+                    c_arr[wh_mask, 3] = 0
+                    final_crop = Image.fromarray(c_arr, "RGBA")
+
+                    uid = uuid.uuid4().hex[:8]
+                    out_name = f"logo_pdf_p{p_idx+1}_{uid}.png"
+                    out_path = ASSETS_DIR / "logos" / out_name
+                    final_crop.save(out_path, format="PNG")
+                    item = {
+                        "id": f"logo_{uid}",
+                        "name": f"{Path(fname).stem}-P{p_idx+1}",
+                        "file": f"logos/{out_name}",
+                        "category": cat_name,
+                        "role": "矢量标贴",
+                        "default_type": "side",
+                        "is_builtin": False,
+                        "width": final_crop.width,
+                        "height": final_crop.height
+                    }
+                    db.append(item)
+                    added_items.append(item)
+            except Exception as ex:
+                print(f"[Upload-Multi] PDF extract error: {ex}")
+            continue
+
+        try:
+            pil_img = Image.open(io.BytesIO(contents))
+            if pil_img.mode != "RGBA":
+                pil_img = pil_img.convert("RGBA")
+            arr = np.array(pil_img)
+            alpha = arr[:, :, 3]
+            gray = np.mean(arr[:, :, :3], axis=2)
+            is_transparent = np.any(alpha < 250)
+            if is_transparent:
+                mask = alpha > 15
+            else:
+                mask = gray < 245
+                white_mask = (arr[:, :, 0] > 242) & (arr[:, :, 1] > 242) & (arr[:, :, 2] > 242)
+                arr[white_mask, 3] = 0
+                pil_img = Image.fromarray(arr, "RGBA")
+
+            if np.mean(mask) < 0.005:
+                continue
+
+            ys, xs = np.where(mask)
+            x0 = max(0, int(xs.min()) - 4)
+            y0 = max(0, int(ys.min()) - 4)
+            x1 = min(pil_img.width, int(xs.max()) + 4)
+            y1 = min(pil_img.height, int(ys.max()) + 4)
+            cropped = pil_img.crop((x0, y0, x1, y1))
+
+            stem = Path(fname).stem
+            clean_stem = re.sub(r'[^A-Za-z0-9_一-龥\-]', '_', stem)
+            uid = uuid.uuid4().hex[:8]
+            out_name = f"logo_{clean_stem}_{uid}.png"
+            out_path = ASSETS_DIR / "logos" / out_name
+            cropped.save(out_path, format="PNG")
+
+            item = {
+                "id": f"logo_{uid}",
+                "name": stem or "自定义素材",
+                "file": f"logos/{out_name}",
+                "category": cat_name,
+                "role": "通用素材",
+                "default_type": "side",
+                "is_builtin": False,
+                "width": cropped.width,
+                "height": cropped.height
+            }
+            db.append(item)
+            added_items.append(item)
+        except Exception as ex:
+            print(f"[Upload-Multi] Image error for {fname}: {ex}")
+
+    save_logos_db(db)
+    return {"status": "success", "added_count": len(added_items), "added_items": added_items}
+
+# --- Layout Templates Endpoints ---
+
+@app.get("/api/layout-templates")
+def get_layout_templates_api():
+    return {"status": "success", "templates": load_layout_templates()}
+
+@app.post("/api/layout-templates")
+def save_layout_template_api(req: Dict[str, Any]):
+    name = req.get("name", "").strip() or f"自定义模版 {len(load_layout_templates())+1}"
+    slots_map = req.get("slots_map", {})
+    tmpls = load_layout_templates()
+    uid = f"tmpl_user_{uuid.uuid4().hex[:6]}"
+    new_tmpl = {
+        "id": uid,
+        "name": name,
+        "desc": req.get("desc", "用户自定义排版模版"),
+        "is_user": True,
+        "slots_map": slots_map
+    }
+    tmpls.append(new_tmpl)
+    save_layout_templates(tmpls)
+    return {"status": "success", "template": new_tmpl}
+
+@app.delete("/api/layout-templates/{template_id}")
+def delete_layout_template_api(template_id: str):
+    tmpls = load_layout_templates()
+    new_tmpls = [t for t in tmpls if t["id"] != template_id]
+    save_layout_templates(new_tmpls)
+    return {"status": "success", "deleted_id": template_id}
+
 
 # --- Template Config API (底表模版编辑：换文字、字体、线条与主Logo) ---
 
@@ -1761,6 +2092,27 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             grp_name = f"款式 {idx+1} ({color_name})"
             pytoshop_groups.append(nested_layers.Group(name=grp_name, layers=pytoshop_layers))
             
+    # Render Canvas Logos (模版公共素材/画布独立标贴)
+    for c_idx, clogo in enumerate(getattr(task, "canvas_logos", []) or []):
+        try:
+            cl_def = next((l for l in load_logos_db() if l["id"] == clogo.logo_id), None)
+            cl_file = clogo.file or (cl_def["file"] if cl_def else "logos/logo_square_boat.png")
+            cl_path = (STATIC_DIR / cl_file) if not cl_file.startswith("/") else (Path(cl_file.lstrip("/")))
+            if not cl_path.exists():
+                cl_path = ASSETS_DIR / cl_file.replace("logos/", "")
+            if cl_path.exists():
+                c_img = Image.open(cl_path).convert("RGBA")
+                cw = max(4, int(c_img.width * (clogo.scale or 1.0)))
+                ch = max(4, int(c_img.height * (clogo.scale or 1.0)))
+                c_scaled = c_img.resize((cw, ch), Image.Resampling.LANCZOS)
+                if clogo.rotation:
+                    c_scaled = c_scaled.rotate(clogo.rotation, expand=True, resample=Image.Resampling.BICUBIC)
+                base_img.paste(c_scaled, (int(clogo.abs_x), int(clogo.abs_y)), c_scaled)
+                pclogo = pil_to_psd_layer(c_scaled, f"画布公共素材-{c_idx+1}", int(clogo.abs_x), int(clogo.abs_y))
+                if pclogo and HAS_PYTOSHOP: pytoshop_groups.append(nested_layers.Group(name=f"画布素材 {c_idx+1}", layers=[pclogo]))
+        except Exception as e:
+            print(f"[Render] canvas_logo error: {e}")
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     sku_part = task.sku.strip() or task.name.strip() or "鞋样审核"
     date_part = task.material_code.replace(".", "")
