@@ -72,6 +72,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateStageUI();
   renderShoeListCards();
 
+  // v2.4.2 18-Item Industrial Modules Initialization
+  setupSyncLogosToAllColors();
+  setupCanvasPanAndZoom();
+  setupSplitterAndSidebarCollapse();
+
+  const btnToggleGuide = document.getElementById("btn-toggle-quick-guide");
+  const popGuide = document.getElementById("quick-guide-popover");
+  const btnCloseGuide = document.getElementById("btn-close-guide-pop");
+  if (btnToggleGuide && popGuide) {
+    btnToggleGuide.onclick = (e) => {
+      e.stopPropagation();
+      popGuide.classList.toggle("show");
+    };
+  }
+  if (btnCloseGuide && popGuide) {
+    btnCloseGuide.onclick = (e) => {
+      e.stopPropagation();
+      popGuide.classList.remove("show");
+    };
+  }
+  document.addEventListener("click", (e) => {
+    if (popGuide && !popGuide.contains(e.target) && e.target !== btnToggleGuide) {
+      popGuide.classList.remove("show");
+    }
+  });
+
+  const btnCloseGuideAlt = document.getElementById("btn-close-quick-guide");
+  if (btnCloseGuideAlt) {
+    btnCloseGuideAlt.onclick = (e) => {
+      e.stopPropagation();
+      const popover = document.getElementById("quick-guide-popover");
+      if (popover) popover.style.display = "none";
+    };
+  }
+  setupMaterialsDrawer();
+  setupFocusedProductEdit();
+  setupSettingsAndFolderModal();
+  setupAiOcrDropzone();
+  setupClipboardPaste();
+  setupInlineTagAdders();
+
   if (window.location.search.includes("open=library")) {
     openProductLibraryModal();
   } else if (window.location.search.includes("open=ai")) {
@@ -129,6 +170,8 @@ function setupStageScale() {
     finalScale = state.base_fit_scale;
   }
   state.stage_scale = finalScale;
+  document.documentElement.style.setProperty('--stage-scale', finalScale);
+  if (stage) stage.style.setProperty('--stage-scale', finalScale);
   
   const stageW = Math.round(STAGE_W * finalScale);
   const stageH = Math.round(STAGE_H * finalScale);
@@ -657,8 +700,8 @@ function renderTags(containerId, presets, onSelect) {
 // --- Standard Logo Anatomical Slots & Smart Auto-Layout ---
 
 const STANDARD_LOGO_SLOTS = {
-  tongue: { rel_x: 0.38, rel_y: 0.08, scale: 1.0, name: "鞋舌口主标" },
-  side:   { rel_x: 0.44, rel_y: 0.48, scale: 1.0, name: "鞋面侧腰标" },
+  tongue: { rel_x: 0.32, rel_y: 0.05, scale: 0.85, name: "鞋舌口主标" },
+  side:   { rel_x: 0.24, rel_y: 0.45, scale: 1.0, name: "鞋面侧腰标" },
   heel:   { rel_x: 0.12, rel_y: 0.35, scale: 0.65, name: "后跟大标" },
   strap:  { rel_x: 0.62, rel_y: 0.28, scale: 0.85, name: "织带副标" },
   toe:    { rel_x: 0.68, rel_y: 0.58, scale: 0.75, name: "鞋头/边条标" }
@@ -1115,7 +1158,9 @@ function restoreLayoutSnapshotToTask(snapshot, prod) {
 // Dynamic Product Form with Multi-Color Editor
 function openProductEditForm(prod = null) {
   const formBox = document.getElementById("prod-edit-form");
-  formBox.style.display = "block";
+  const listView = document.getElementById("prod-library-list-view");
+  if (listView) listView.style.display = "none";
+  if (formBox) formBox.style.display = "block";
   
   if (prod) {
     document.getElementById("prod-form-title").textContent = `编辑款式档案：${prod.sku}`;
@@ -1547,9 +1592,16 @@ function setupEventListeners() {
   document.getElementById("btn-save-layout-snapshot").onclick = handleSaveLayoutSnapshot;
 
   document.getElementById("btn-new-prod-item").onclick = () => openProductEditForm(null);
-  document.getElementById("btn-cancel-prod-edit").onclick = () => {
-    document.getElementById("prod-edit-form").style.display = "none";
+  const closeEditorView = () => {
+    const fb = document.getElementById("prod-edit-form");
+    if (fb) fb.style.display = "none";
+    const lv = document.getElementById("prod-library-list-view");
+    if (lv) lv.style.display = "block";
   };
+  const btnCancel = document.getElementById("btn-cancel-prod-edit");
+  if (btnCancel) btnCancel.onclick = closeEditorView;
+  const btnBack = document.getElementById("btn-back-to-prod-list");
+  if (btnBack) btnBack.onclick = closeEditorView;
   document.getElementById("btn-save-prod-item").onclick = saveProductItemFromForm;
   document.getElementById("btn-add-form-color-row").onclick = handleAddFormColorRow;
 
@@ -3107,8 +3159,8 @@ function makeLogoDraggable(logoEl, logo, shoeW, shoeH) {
       const dx = (ev.clientX - startX) / curScale;
       const dy = (ev.clientY - startY) / curScale;
 
-      logo.rel_x = Math.max(-0.4, Math.min(1.4, startRelX + dx / shoeW));
-      logo.rel_y = Math.max(-0.4, Math.min(1.4, startRelY + dy / shoeH));
+      logo.rel_x = startRelX + dx / shoeW;
+      logo.rel_y = startRelY + dy / shoeH;
       logoEl.style.left = `${Math.round(logo.rel_x * 100)}%`;
       logoEl.style.top = `${Math.round(logo.rel_y * 100)}%`;
     };
@@ -3390,4 +3442,722 @@ function showToast(msg) {
   setTimeout(() => {
     toast.classList.remove("show");
   }, 3200);
+}
+
+
+/* === v2.4.2 Comprehensive 18-Item Interactivity Addons === */
+
+// 1. Sync First Shoe Logos to All Other Colors (Item 9)
+function setupSyncLogosToAllColors() {
+  const btn = document.getElementById("btn-sync-logos-to-all");
+  if (!btn) return;
+  btn.onclick = () => {
+    const task = getActiveTask();
+    if (!task || !task.shoes || task.shoes.length <= 1) {
+      showToast("当前至少需要 2 种配色才能执行标贴同步");
+      return;
+    }
+    const firstShoe = task.shoes[0];
+    const firstLogos = firstShoe.logos || [];
+    task.shoes.slice(1).forEach(shoe => {
+      shoe.logos = JSON.parse(JSON.stringify(firstLogos));
+    });
+    updateStageUI();
+    syncGroupsToServer();
+    showToast(`⚡ 已将首款【${firstShoe.color_name || '1号色'}】的 ${firstLogos.length} 枚标贴同步到全部配色！`);
+  };
+}
+
+// 2. Free Canvas Pan & Space-Drag Navigation (Item 4)
+function setupCanvasPanAndZoom() {
+  const viewport = document.getElementById("canvas-viewport");
+  const scaleContainer = document.getElementById("stage-scale-container");
+  if (!viewport || !scaleContainer) return;
+
+  state.pan_x = 0;
+  state.pan_y = 0;
+  let isPanning = false;
+  let startX = 0, startY = 0;
+  let startPanX = 0, startPanY = 0;
+  let spacePressed = false;
+
+  const applyPan = () => {
+    scaleContainer.style.transform = `translate(${state.pan_x}px, ${state.pan_y}px)`;
+  };
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+      spacePressed = true;
+      viewport.classList.add("can-pan");
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space") {
+      spacePressed = false;
+      viewport.classList.remove("can-pan");
+    }
+  });
+
+  viewport.addEventListener("mousedown", (e) => {
+    if (e.button === 1 || spacePressed || e.target === viewport || e.target === scaleContainer) {
+      e.preventDefault();
+      isPanning = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startPanX = state.pan_x;
+      startPanY = state.pan_y;
+      viewport.classList.add("panning");
+    }
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isPanning) return;
+    state.pan_x = startPanX + (e.clientX - startX);
+    state.pan_y = startPanY + (e.clientY - startY);
+    applyPan();
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (isPanning) {
+      isPanning = false;
+      viewport.classList.remove("panning");
+    }
+  });
+
+  const btnFit = document.getElementById("btn-zoom-fit");
+  if (btnFit) {
+    const oldFit = btnFit.onclick;
+    btnFit.onclick = (e) => {
+      state.pan_x = 0;
+      state.pan_y = 0;
+      applyPan();
+      if (oldFit) oldFit(e);
+    };
+  }
+}
+
+// 3. Sidebars Splitter Drag & One-Click Collapse (Item 3)
+function setupSplitterAndSidebarCollapse() {
+  const splitter = document.getElementById("qz-sidebar-splitter");
+  const panelTasks = document.getElementById("panel-tasks");
+  const panelSpecs = document.getElementById("panel-specs");
+  const btnCollapseTasks = document.getElementById("btn-collapse-tasks-rail");
+  const btnCollapseSpecs = document.getElementById("btn-collapse-specs-panel");
+
+  if (btnCollapseTasks && panelTasks) {
+    btnCollapseTasks.onclick = () => {
+      panelTasks.classList.toggle("collapsed");
+      btnCollapseTasks.textContent = panelTasks.classList.contains("collapsed") ? "▶" : "◀";
+      setTimeout(setupStageScale, 220);
+    };
+  }
+
+  if (btnCollapseSpecs && panelSpecs) {
+    btnCollapseSpecs.onclick = () => {
+      panelSpecs.classList.toggle("collapsed");
+      btnCollapseSpecs.textContent = panelSpecs.classList.contains("collapsed") ? "▶" : "◀";
+      setTimeout(setupStageScale, 220);
+    };
+  }
+
+  if (splitter && panelSpecs) {
+    let isDragging = false;
+    let startX = 0;
+    let startW = 0;
+
+    splitter.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startW = panelSpecs.offsetWidth;
+      splitter.classList.add("dragging");
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const newW = Math.max(160, Math.min(500, startW + dx));
+      panelSpecs.style.width = `${newW}px`;
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        splitter.classList.remove("dragging");
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setupStageScale();
+      }
+    });
+  }
+}
+
+// 4. Materials Library Right Drawer & PDF Hub (Items 6 & 7 & 18)
+function setupMaterialsDrawer() {
+  const drawer = document.getElementById("materials-drawer");
+  const btnToggle = document.getElementById("btn-toggle-materials-drawer");
+  const btnClose = document.getElementById("btn-close-materials-drawer");
+  const searchInput = document.getElementById("drawer-logo-search");
+  const catTabs = document.getElementById("drawer-cat-tabs");
+  const btnImportPdf = document.getElementById("btn-import-pdf-drawer");
+  const btnAddLogo = document.getElementById("btn-open-add-logo-drawer");
+
+  if (btnToggle && drawer) {
+    btnToggle.onclick = () => {
+      drawer.classList.toggle("open");
+      renderMaterialsDrawerLogos();
+    };
+  }
+  if (btnClose && drawer) {
+    btnClose.onclick = () => drawer.classList.remove("open");
+  }
+
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      state.logo_search_query = e.target.value.trim().toLowerCase();
+      renderMaterialsDrawerLogos();
+    };
+  }
+
+  if (catTabs) {
+    catTabs.querySelectorAll(".drawer-tab-btn").forEach(btn => {
+      btn.onclick = () => {
+        catTabs.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.logo_category = btn.getAttribute("data-cat");
+        renderMaterialsDrawerLogos();
+      };
+    });
+  }
+
+  if (btnImportPdf) {
+    btnImportPdf.onclick = () => {
+      const modal = document.getElementById("modal-import-pdf");
+      if (modal) modal.classList.add("show");
+    };
+  }
+
+  if (btnAddLogo) {
+    btnAddLogo.onclick = () => {
+      const modal = document.getElementById("modal-add-logo");
+      if (modal) modal.classList.add("show");
+    };
+  }
+}
+
+function renderMaterialsDrawerLogos() {
+  const grid = document.getElementById("drawer-logos-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  const allLogos = state.logos_pool || [];
+  const badge = document.getElementById("materials-count-badge");
+  const totalChip = document.getElementById("drawer-total-count");
+  if (badge) badge.textContent = allLogos.length;
+  if (totalChip) totalChip.textContent = `${allLogos.length}款`;
+
+  const logos = getFilteredLogos();
+  if (logos.length === 0) {
+    grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 20px; text-align: center; color: var(--text-muted); font-size: 12px;">🔍 没有找到匹配的标贴素材</div>`;
+    return;
+  }
+
+  logos.forEach(logo => {
+    const card = document.createElement("div");
+    card.className = "logo-item-card";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.border = "1px solid var(--border-color)";
+    card.style.borderRadius = "6px";
+    card.style.padding = "6px";
+    card.style.background = "var(--bg-surface)";
+    card.style.cursor = "pointer";
+
+    const imgPath = logo.file.startsWith("/") ? logo.file : `/static/assets/${logo.file}`;
+    card.innerHTML = `
+      <div style="width:100%; height:75px; display:flex; align-items:center; justify-content:center; background:var(--bg-hover); border-radius:4px; overflow:hidden;">
+        <img src="${imgPath}" alt="${logo.name}" style="max-width:90%; max-height:90%; object-fit:contain; pointer-events:none;">
+      </div>
+      <div style="margin-top:4px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${logo.name}">${logo.name}</div>
+      <div style="font-size:10px; color:var(--text-muted);">${logo.role || '标贴'}</div>
+      <div style="display:flex; gap:4px; margin-top:6px;">
+        <button class="qz-btn qz-btn-secondary qz-btn-xs btn-cutout-logo" title="一键去除白底" style="flex:1; padding:2px 4px; font-size:10px;">✂️ 抠图</button>
+        <button class="qz-btn qz-btn-primary qz-btn-xs btn-apply-logo" title="添加到当前鞋款" style="flex:1; padding:2px 4px; font-size:10px;">➕ 放置</button>
+      </div>
+    `;
+
+    card.querySelector(".btn-apply-logo").onclick = (e) => {
+      e.stopPropagation();
+      const task = getActiveTask();
+      if (!task || !task.shoes || task.shoes.length === 0) {
+        showToast("请先添加鞋款照片");
+        return;
+      }
+      const targetShoe = task.shoes.find(s => s.id === state.selected_shoe_id) || task.shoes[0];
+      const newPlaced = {
+        logo_id: logo.id,
+        file: logo.file,
+        rel_x: logo.default_rel_x ?? 0.24,
+        rel_y: logo.default_rel_y ?? 0.45,
+        scale: logo.default_scale ?? 1.0,
+        rotation: 0
+      };
+      targetShoe.logos.push(newPlaced);
+      updateStageUI();
+      syncGroupsToServer();
+      showToast(`已添加【${logo.name}】至【${targetShoe.color_name}】！`);
+    };
+
+    card.querySelector(".btn-cutout-logo").onclick = async (e) => {
+      e.stopPropagation();
+      showLoading(`正在为【${logo.name}】智能抠图去白底...`);
+      try {
+        const res = await fetch(`/api/logos/${logo.id}/cutout`, { method: "POST" });
+        const data = await res.json();
+        hideLoading();
+        if (data.status === "success" && data.logo) {
+          logo.file = data.logo.file;
+          renderMaterialsDrawerLogos();
+          updateStageUI();
+          syncGroupsToServer();
+          showToast(`✂️【${logo.name}】已成功去除白底！`);
+        }
+      } catch (err) {
+        hideLoading();
+        showToast(`抠图失败: ${err.message}`);
+      }
+    };
+
+    grid.appendChild(card);
+  });
+}
+
+// 5. Bottom Drawer [方案 B] Pure Color Carousel & Hover Actions (Items 11 & 12)
+function renderBottomShoesDrawer() {
+  const task = getActiveTask();
+  const container = document.getElementById("bottom-shoes-scroll") || document.getElementById("shoe-list");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!task) return;
+
+  const countTag = document.getElementById("shoe-count-tag");
+  if (countTag) countTag.textContent = `${task.shoes.length} / 15 款`;
+
+  task.shoes.forEach((shoe, idx) => {
+    const isSelected = shoe.id === state.selected_shoe_id;
+    const card = document.createElement("div");
+    card.className = `shoe-tray-card ${isSelected ? "selected" : ""}`;
+
+    card.innerHTML = `
+      <div style="position:relative; width:100%; height:82px; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+        <img src="${shoe.is_cutout ? shoe.cutout_url : shoe.raw_url}" style="max-width:92%; max-height:92%; object-fit:contain; pointer-events:none;">
+        ${shoe.is_cutout ? '<span class="shoe-status-chip cutout-done" style="position:absolute; top:2px; right:2px; font-size:9px; padding:1px 4px;">✓ 已去底</span>' : '<span class="shoe-status-chip" style="position:absolute; top:2px; right:2px; font-size:9px; padding:1px 4px;">⏳ 原图</span>'}
+        <div class="shoe-card-overlay-actions">
+          <button class="overlay-action-btn btn-card-replace" title="替换鞋款图片（保留颜色名）">🔄 换图</button>
+          <button class="overlay-action-btn btn-card-recutout" title="重新智能去底">✂️ 去底</button>
+          <button class="overlay-action-btn danger btn-card-del" title="删除该颜色">🗑️ 删除</button>
+        </div>
+      </div>
+      <div style="width:100%; padding:2px 4px; display:flex; align-items:center; justify-content:center; background:var(--bg-hover);">
+        <input type="text" class="shoe-color-input" value="${shoe.color_name || ''}" placeholder="颜色名称" style="width:100%; text-align:center; font-size:11px; border:none; background:transparent; font-weight:600; outline:none;">
+      </div>
+    `;
+
+    card.onclick = () => {
+      state.selected_shoe_id = shoe.id;
+      updateStageUI();
+      renderBottomShoesDrawer();
+    };
+
+    const colorInput = card.querySelector(".shoe-color-input");
+    colorInput.onclick = (e) => e.stopPropagation();
+    colorInput.oninput = (e) => {
+      shoe.color_name = e.target.value;
+      updateStageUI();
+      syncGroupsToServer();
+    };
+
+    card.querySelector(".btn-card-replace").onclick = (e) => {
+      e.stopPropagation();
+      state.replacing_shoe_id = shoe.id;
+      const fi = document.getElementById("shoe-replace-file-input");
+      if (fi) { fi.value = ""; fi.click(); }
+    };
+
+    card.querySelector(".btn-card-recutout").onclick = async (e) => {
+      e.stopPropagation();
+      showLoading(`正在重新对【${shoe.color_name}】进行智能去底...`);
+      try {
+        const res = await fetch("/api/cutout-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw_filenames: [shoe.raw_filename] })
+        });
+        const data = await res.json();
+        hideLoading();
+        if (data.status === "success" && data.results && data.results[0]) {
+          shoe.cutout_filename = data.results[0].cutout_filename;
+          shoe.cutout_url = data.results[0].cutout_url;
+          shoe.is_cutout = true;
+          updateStageUI();
+          renderBottomShoesDrawer();
+          syncGroupsToServer();
+          showToast(`✂️【${shoe.color_name}】重新去底成功！`);
+        }
+      } catch (err) {
+        hideLoading();
+        showToast(`去底失败: ${err.message}`);
+      }
+    };
+
+    card.querySelector(".btn-card-del").onclick = (e) => {
+      e.stopPropagation();
+      task.shoes.splice(idx, 1);
+      if (state.selected_shoe_id === shoe.id) {
+        state.selected_shoe_id = task.shoes[0]?.id ?? null;
+      }
+      triggerAiAutoLayout();
+      renderBottomShoesDrawer();
+      renderTasksNav();
+      syncGroupsToServer();
+      showToast(`已删除颜色【${shoe.color_name}】`);
+    };
+
+    container.appendChild(card);
+  });
+}
+
+// 6. Focused Product Library Edit View (Item 13)
+function setupFocusedProductEdit() {
+  const btnNew = document.getElementById("btn-new-prod-model");
+  const btnBack = document.getElementById("btn-back-to-prod-list");
+  const btnCancel = document.getElementById("btn-cancel-edit-prod");
+  const form = document.getElementById("prod-edit-form");
+  const listView = document.getElementById("prod-library-list-view");
+
+  if (btnNew) {
+    btnNew.onclick = () => {
+      if (listView) listView.classList.add("hidden");
+      if (form) form.classList.add("active");
+      openProductEditForm(null);
+    };
+  }
+
+  const exitEdit = () => {
+    if (form) form.classList.remove("active");
+    if (listView) listView.classList.remove("hidden");
+  };
+
+  if (btnBack) btnBack.onclick = exitEdit;
+  if (btnCancel) btnCancel.onclick = exitEdit;
+}
+
+// 7. System Settings Modal & Open Folder (Item 17)
+function setupSettingsAndFolderModal() {
+  const modal = document.getElementById("modal-settings");
+  const btnOpenSettings = document.getElementById("btn-open-settings");
+  const btnClose = document.getElementById("btn-close-settings-modal");
+  const btnCloseFoot = document.getElementById("btn-close-settings-foot");
+  const btnSave = document.getElementById("btn-save-settings");
+  const btnCopy = document.getElementById("btn-copy-output-path");
+  const btnOpenFolderModal = document.getElementById("btn-open-folder-modal");
+  const btnOpenFolderTop = document.getElementById("btn-open-folder");
+  const inputPath = document.getElementById("settings-output-dir");
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.status === "success" && inputPath) {
+        inputPath.value = data.output_dir;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  if (btnOpenSettings) {
+    btnOpenSettings.onclick = () => {
+      loadSettings();
+      if (modal) modal.classList.add("show");
+    };
+  }
+  if (btnClose) btnClose.onclick = () => modal.classList.remove("show");
+  if (btnCloseFoot) btnCloseFoot.onclick = () => modal.classList.remove("show");
+
+  if (btnOpenFolderTop) {
+    btnOpenFolderTop.onclick = async () => {
+      try {
+        await fetch("/api/open-folder", { method: "POST" });
+        showToast("📁 正在为您打开成品存储目录...");
+      } catch (err) {
+        showToast(`打开失败: ${err.message}`);
+      }
+    };
+  }
+
+  if (btnOpenFolderModal) {
+    btnOpenFolderModal.onclick = async () => {
+      const p = inputPath ? inputPath.value.trim() : "";
+      await fetch(`/api/open-folder?path=${encodeURIComponent(p)}`, { method: "POST" });
+    };
+  }
+
+  if (btnCopy && inputPath) {
+    btnCopy.onclick = () => {
+      navigator.clipboard.writeText(inputPath.value).then(() => {
+        showToast("📋 成品物理路径已复制！");
+      });
+    };
+  }
+
+  if (btnSave && inputPath) {
+    btnSave.onclick = async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ output_dir: inputPath.value.trim() })
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+          showToast(`⚙️ 物理目录已更新：${data.output_dir}`);
+          modal.classList.remove("show");
+        }
+      } catch (err) {
+        showToast(`保存失败: ${err.message}`);
+      }
+    };
+  }
+}
+
+// 8. AI OCR Image Screenshot Paste & Dropzone (Item 15)
+function setupAiOcrDropzone() {
+  const dropzone = document.getElementById("ocr-image-dropzone");
+  const fileInput = document.getElementById("ocr-file-input");
+
+  if (!dropzone) return;
+
+  dropzone.onclick = () => {
+    if (fileInput) fileInput.click();
+  };
+
+  dropzone.ondragover = (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  };
+  dropzone.ondragleave = () => dropzone.classList.remove("dragover");
+  dropzone.ondrop = (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleOcrImageFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  if (fileInput) {
+    fileInput.onchange = () => {
+      if (fileInput.files && fileInput.files[0]) {
+        handleOcrImageFile(fileInput.files[0]);
+      }
+    };
+  }
+}
+
+async function handleOcrImageFile(file) {
+  const statusTip = document.getElementById("ocr-status-tip");
+  const promptArea = document.getElementById("ai-parse-prompt");
+  if (statusTip) statusTip.textContent = "⏳ 正在调用 Windows 本地原生 OCR 引擎秒级提取图片文字...";
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/ai/parse-spec-image", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.status === "success") {
+      if (promptArea && data.raw_text) promptArea.value = data.raw_text;
+      if (statusTip) statusTip.textContent = "✓ 文字提取成功！已填入规格参数";
+      if (data.parsed) {
+        applyParsedFieldsToTask(data.parsed);
+        showToast(`⚡ 成功识别款号【${data.parsed.sku || '未知'}】并填入参数！`);
+        const modal = document.getElementById("modal-ai-parse");
+        if (modal) modal.classList.remove("show");
+      }
+    } else {
+      if (statusTip) statusTip.textContent = `⚠️ ${data.message || '未能识别文字'}`;
+    }
+  } catch (err) {
+    if (statusTip) statusTip.textContent = `识别出错: ${err.message}`;
+  }
+}
+
+function applyParsedFieldsToTask(parsed) {
+  const task = getActiveTask();
+  if (!task) return;
+  if (parsed.sku) task.sku = parsed.sku;
+  if (parsed.name) task.name = parsed.name;
+  if (parsed.category) task.category = parsed.category;
+  if (parsed.season) task.season = parsed.season;
+  if (parsed.craft) task.craft = parsed.craft;
+  if (parsed.fabrics) task.fabrics = parsed.fabrics;
+  if (parsed.soles) task.soles = parsed.soles;
+  if (parsed.size) task.size = parsed.size;
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  setVal("input-sku", task.sku);
+  setVal("input-material-code", task.material_code);
+  setVal("input-size", task.size);
+  setVal("input-fabrics", task.fabrics);
+  setVal("input-soles", task.soles);
+  setVal("header-task-name", task.name);
+
+  // Sync active states on tag clouds
+  const syncTagCloud = (groupId, val) => {
+    const group = document.getElementById(groupId);
+    if (!group || !val) return;
+    group.querySelectorAll(".tag").forEach(tag => {
+      tag.classList.toggle("active", tag.textContent.trim() === val);
+    });
+  };
+  syncTagCloud("tags-category", task.category);
+  syncTagCloud("tags-season", task.season);
+  syncTagCloud("tags-craft", task.craft);
+
+  updateStageUI();
+  renderTasksNav();
+  syncGroupsToServer();
+}
+
+// 9. Global Clipboard Paste Handler (Item 11 & 18)
+function setupClipboardPaste() {
+  window.addEventListener("paste", async (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+    if (!items) return;
+
+    let imageFile = null;
+    for (const item of items) {
+      if (item.type && item.type.startsWith("image/")) {
+        imageFile = item.getAsFile();
+        break;
+      }
+    }
+    if (!imageFile) return;
+
+    const modalAi = document.getElementById("modal-ai-parse");
+    if (modalAi && modalAi.classList.contains("show")) {
+      e.preventDefault();
+      handleOcrImageFile(imageFile);
+      return;
+    }
+
+    const task = getActiveTask();
+    if (!task) {
+      showToast("请先选择或创建送审款式任务");
+      return;
+    }
+
+    e.preventDefault();
+    showLoading("正在上传剪贴板图片并执行离线智能去底...");
+    const formData = new FormData();
+    formData.append("file", imageFile);
+
+    try {
+      const res = await fetch("/api/upload-raw", { method: "POST", body: formData });
+      const data = await res.json();
+      hideLoading();
+
+      if (data.status === "success") {
+        const raw_name = data.raw_filename;
+        showLoading("正在调用 AI 抠图引擎处理鞋款轮廓...");
+        const cutRes = await fetch("/api/cutout-batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw_filenames: [raw_name] })
+        });
+        const cutData = await cutRes.json();
+        hideLoading();
+
+        const cutInfo = (cutData.status === "success" && cutData.results && cutData.results[0]) ? cutData.results[0] : null;
+        const usedColors = (task.shoes || []).map(s => s.color_name);
+        const nextColor = DEFAULT_COLOR_PALETTE.find(c => !usedColors.includes(c)) || `配色 ${(task.shoes || []).length + 1}`;
+
+        const newShoe = {
+          id: `shoe_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          color_name: nextColor,
+          raw_filename: raw_name,
+          raw_url: data.raw_url,
+          cutout_filename: cutInfo ? cutInfo.cutout_filename : raw_name,
+          cutout_url: cutInfo ? cutInfo.cutout_url : data.raw_url,
+          is_cutout: !!cutInfo,
+          width: data.width || 800,
+          height: data.height || 600,
+          scale_multiplier: 1.0,
+          offset_x: 0,
+          offset_y: 0,
+          logos: []
+        };
+
+        task.shoes.push(newShoe);
+        state.selected_shoe_id = newShoe.id;
+        triggerAiAutoLayout();
+        renderBottomShoesDrawer();
+        renderTasksNav();
+        syncGroupsToServer();
+        showToast(`📋 已从剪贴板粘贴添加新鞋款【${newShoe.color_name}】并完成智能去底！`);
+      }
+    } catch (err) {
+      hideLoading();
+      showToast(`粘贴图片失败: ${err.message}`);
+    }
+  });
+}
+
+// 10. Inline Tag Adders (Item 1)
+function setupInlineTagAdders() {
+  document.querySelectorAll(".btn-tag-add-inline").forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const targetField = btn.getAttribute("data-target");
+      const fieldNames = {
+        category: "鞋类类别",
+        season: "适用季节",
+        craft: "制作工艺",
+        fabrics: "鞋面面料",
+        soles: "鞋底材质"
+      };
+      const label = fieldNames[targetField] || targetField;
+      const newVal = prompt(`请输入要新增的【${label}】标签：`);
+      if (!newVal || !newVal.trim()) return;
+      const tagText = newVal.trim();
+
+      const container = btn.closest(".specs-form-group")?.querySelector(".tag-scroll-box") 
+                     || btn.closest(".specs-form-group")?.querySelector(".tag-cloud");
+      if (container) {
+        const tag = document.createElement("span");
+        tag.className = "tag active";
+        tag.textContent = tagText;
+        tag.onclick = () => {
+          container.querySelectorAll(".tag").forEach(t => t.classList.remove("active"));
+          tag.classList.add("active");
+          const task = getActiveTask();
+          if (task) {
+            task[targetField] = tagText;
+            const input = document.getElementById(`input-${targetField}`);
+            if (input) input.value = tagText;
+            updateStageUI();
+            syncGroupsToServer();
+          }
+        };
+        container.appendChild(tag);
+        tag.click();
+        showToast(`已添加并选中新标签【${tagText}】`);
+      }
+    };
+  });
 }

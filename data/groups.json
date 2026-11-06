@@ -49,8 +49,8 @@
               {
                 "logo_id": "logo_square_boat",
                 "file": "logos/logo_square_boat.png",
-                "rel_x": 0.38,
-                "rel_y": 0.08,
+                "rel_x": -0.3951176489117082,
+                "rel_y": -0.38437647651746626,
                 "scale": 1.0,
                 "rotation": 0.0
               }
@@ -62,8 +62,8 @@
             "raw_filename": "sample_a71092b8.png",
             "cutout_filename": "sample_a71092b8.png",
             "is_cutout": true,
-            "offset_x": 0.0,
-            "offset_y": 0.0,
+            "offset_x": 41.0,
+            "offset_y": 41.0,
             "scale_multiplier": 1.0,
             "logos": []
           },
@@ -74,7 +74,7 @@
             "cutout_filename": "sample_efa09a3b.png",
             "is_cutout": true,
             "offset_x": 0.0,
-            "offset_y": 0.0,
+            "offset_y": 182.0,
             "scale_multiplier": 1.0,
             "logos": []
           }

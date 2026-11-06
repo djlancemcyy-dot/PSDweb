@@ -9,6 +9,7 @@ import datetime
 import threading
 import time
 import webbrowser
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -132,8 +133,8 @@ DEFAULT_TEMPLATE_CONFIG = {
     "category_title": "成人女鞋",
     "reviewer": "审核:",
     "re_reviewer": "复核:",
-    "logo_url": "/static/assets/logos/logo_square_boat.png",
-    "logo_filename": "logos/logo_square_boat.png",
+    "logo_url": "/static/assets/logos/logo_navigare_horizontal.png",
+    "logo_filename": "logos/logo_navigare_horizontal.png",
     "fonts": {
         "title_font": "Microsoft YaHei",
         "title_size": 76,
@@ -572,6 +573,101 @@ def update_logo_info(logo_id: str, req: UpdateLogoRequest):
             return {"status": "success", "logo": item}
     raise HTTPException(status_code=404, detail="标贴不存在")
 
+
+def remove_logo_background(img: Image.Image) -> Image.Image:
+    img_rgba = img.convert("RGBA")
+    try:
+        if shoe_engine and shoe_engine.session:
+            import rembg
+            out_img = rembg.remove(img_rgba, session=shoe_engine.session)
+            alpha = out_img.split()[-1]
+            if alpha.getbbox():
+                return out_img
+    except Exception:
+        pass
+
+    try:
+        import numpy as np
+        data = np.array(img_rgba)
+        r, g, b, a = data[:, :, 0], data[:, :, 1], data[:, :, 2], data[:, :, 3]
+        h, w = r.shape
+        corners = [(0, 0), (0, w - 1), (h - 1, 0), (h - 1, w - 1)]
+        corner_bright = [int(r[y, x]) > 210 and int(g[y, x]) > 210 and int(b[y, x]) > 210 for y, x in corners]
+        if sum(corner_bright) >= 2:
+            dist_white = np.maximum(np.maximum(255 - r, 255 - g), 255 - b)
+            new_a = np.clip((dist_white.astype(np.float32) - 15.0) / 25.0 * 255.0, 0, 255).astype(np.uint8)
+            data[:, :, 3] = np.minimum(a, new_a)
+            return Image.fromarray(data, "RGBA")
+    except Exception as e:
+        print(f"[Logo Cutout] NumPy fallback error: {e}")
+    return img_rgba
+
+@app.post("/api/logos/{logo_id}/cutout")
+def cutout_existing_logo(logo_id: str):
+    db = load_logos_db()
+    target_item = None
+    for item in db:
+        if item["id"] == logo_id:
+            target_item = item
+            break
+    if not target_item:
+        raise HTTPException(status_code=404, detail="标贴不存在")
+
+    rel_file = target_item.get("file", "")
+    src_path = ASSETS_DIR / rel_file if not rel_file.startswith("uploads/") else UPLOADS_DIR / rel_file.replace("uploads/", "")
+    if not src_path.exists():
+        src_path = ASSETS_DIR / "logos" / Path(rel_file).name
+    if not src_path.exists():
+        raise HTTPException(status_code=404, detail="标贴原图文件不存在")
+
+    try:
+        orig = Image.open(src_path)
+        cutout = remove_logo_background(orig)
+        out_name = f"cutout_{Path(src_path).stem}_{uuid.uuid4().hex[:6]}.png"
+        out_path = ASSETS_DIR / "logos" / out_name
+        cutout.save(out_path, format="PNG")
+        
+        target_item["file"] = f"logos/{out_name}"
+        save_logos_db(db)
+        return {"status": "success", "logo": target_item}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"标贴抠图失败: {e}")
+
+@app.post("/api/logos/upload-and-cutout")
+async def upload_and_cutout_logo(file: UploadFile = File(...), auto_cutout: bool = True):
+    try:
+        contents = await file.read()
+        pil_img = Image.open(io.BytesIO(contents))
+        if auto_cutout:
+            pil_img = remove_logo_background(pil_img)
+        else:
+            pil_img = pil_img.convert("RGBA")
+        
+        stem = Path(file.filename or "pasted_logo").stem
+        clean_stem = re.sub(r'[^A-Za-z0-9_一-龥]', '_', stem)
+        out_name = f"logo_{clean_stem}_{uuid.uuid4().hex[:6]}.png"
+        out_path = ASSETS_DIR / "logos" / out_name
+        pil_img.save(out_path, format="PNG")
+
+        db = load_logos_db()
+        new_item = {
+            "id": f"logo_custom_{uuid.uuid4().hex[:8]}",
+            "name": stem or "自定义图案",
+            "file": f"logos/{out_name}",
+            "role": "自定义图案",
+            "default_type": "side",
+            "is_system": False,
+            "width": pil_img.width,
+            "height": pil_img.height,
+            "default_rel_x": 0.24,
+            "default_rel_y": 0.45
+        }
+        db.append(new_item)
+        save_logos_db(db)
+        return {"status": "success", "logo": new_item}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"上传标贴失败: {e}")
+
 @app.delete("/api/logos/{logo_id}")
 def delete_logo(logo_id: str):
     db = load_logos_db()
@@ -890,12 +986,8 @@ async def upload_product_cover(file: UploadFile = File(...)):
 
 # --- AI Parsing Assistant (自然语言智能提取) ---
 
-@app.post("/api/ai/parse-spec")
-def parse_spec_with_ai(req: AiParseRequest):
-    text = req.prompt.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="内容不能为空")
 
+def extract_spec_fields(text: str) -> Dict[str, Any]:
     result = {
         "sku": "",
         "name": "",
@@ -907,7 +999,6 @@ def parse_spec_with_ai(req: AiParseRequest):
         "size": "36",
         "colors": []
     }
-
     sku_match = re.search(r'(?:款号|货号|型号|编号|款)\s*[:：]?\s*([A-Za-z0-9\-]+)', text)
     if not sku_match:
         sku_match = re.search(r'\b(20\d{4}|\d{6,8})\b', text)
@@ -938,7 +1029,7 @@ def parse_spec_with_ai(req: AiParseRequest):
     if found_fabrics:
         result["fabrics"] = "+".join(found_fabrics)
     else:
-        m_fab = re.search(r'面料\s*[:：]?\s*([^\s,，;；]+)', text)
+        m_fab = re.search(r'面料\s*[:：]?\s*([^\s,，；;]+)', text)
         if m_fab:
             result["fabrics"] = m_fab.group(1)
 
@@ -950,7 +1041,7 @@ def parse_spec_with_ai(req: AiParseRequest):
     if found_soles:
         result["soles"] = found_soles[0]
     else:
-        m_sole = re.search(r'(?:鞋底|大底|底)\s*[:：]?\s*([^\s,，;；]+)', text)
+        m_sole = re.search(r'(?:鞋底|大底|底)\s*[:：]?\s*([^\s,，；;]+)', text)
         if m_sole:
             result["soles"] = m_sole.group(1)
 
@@ -964,7 +1055,44 @@ def parse_spec_with_ai(req: AiParseRequest):
             found_colors.append(c)
     if found_colors:
         result["colors"] = found_colors
+    return result
 
+@app.post("/api/ai/parse-spec-image")
+async def parse_spec_from_image(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        suffix = Path(file.filename or "temp.png").suffix or ".png"
+        tmp_img = UPLOADS_DIR / f"ocr_tmp_{uuid.uuid4().hex[:8]}{suffix}"
+        with open(tmp_img, "wb") as f:
+            f.write(contents)
+
+        ps_script = BASE_DIR / "windows_ocr.ps1"
+        extracted_text = ""
+        if ps_script.exists():
+            cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ps_script), "-ImagePath", str(tmp_img)]
+            p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+            if p.returncode == 0:
+                extracted_text = p.stdout.strip()
+
+        try:
+            tmp_img.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        if not extracted_text:
+            return {"status": "warning", "message": "未能从图片中识别到清晰文字", "parsed": extract_spec_fields("")}
+
+        parsed = extract_spec_fields(extracted_text)
+        return {"status": "success", "raw_text": extracted_text, "parsed": parsed}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"图片OCR解析失败: {e}")
+
+@app.post("/api/ai/parse-spec")
+def parse_spec_with_ai(req: AiParseRequest):
+    text = req.prompt.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="内容不能为空")
+    result = extract_spec_fields(text)
     return {"status": "success", "parsed": result}
 
 # --- Raw Upload & Cutout ---
@@ -1479,19 +1607,20 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             custom_logo_path = p_cand
             break
             
-    head_logo_info = {"x": 190, "y": 100, "w": 120, "h": 120}
+    head_logo_info = {"x": 112, "y": 42, "w": 620, "h": 160}
     if custom_logo_path and custom_logo_path.exists():
         try:
             head_logo_img = Image.open(custom_logo_path).convert("RGBA")
-            target_lh = 120
+            target_lh = 160
             target_lw = max(10, int(head_logo_img.width * (target_lh / head_logo_img.height)))
-            if target_lw > 650:
-                target_lw = 650
+            if target_lw > 720:
+                target_lw = 720
                 target_lh = max(10, int(head_logo_img.height * (target_lw / head_logo_img.width)))
             head_logo_resized = head_logo_img.resize((target_lw, target_lh), Image.Resampling.LANCZOS)
-            paste_y = 157 - target_lh // 2
-            base_img.paste(head_logo_resized, (190, paste_y), head_logo_resized)
-            head_logo_info = {"x": 190, "y": paste_y, "w": target_lw, "h": target_lh}
+            paste_x = 24 + (816 - target_lw) // 2
+            paste_y = 28 + (200 - target_lh) // 2
+            base_img.paste(head_logo_resized, (paste_x, paste_y), head_logo_resized)
+            head_logo_info = {"x": paste_x, "y": paste_y, "w": target_lw, "h": target_lh}
         except Exception as e:
             print(f"[Render] 主LOGO绘制异常: {e}")
             
@@ -1669,13 +1798,45 @@ def download_output(filename: str):
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(target, filename=filename, media_type="image/jpeg")
 
+
+@app.get("/api/settings")
+def get_system_settings():
+    return {
+        "status": "success",
+        "output_dir": str(OUTPUT_DIR.resolve()),
+        "version": "2.4.2"
+    }
+
+@app.post("/api/settings")
+def save_system_settings(req: Dict[str, Any]):
+    global OUTPUT_DIR
+    new_path = req.get("output_dir", "").strip()
+    if new_path:
+        p = Path(new_path)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            OUTPUT_DIR = p
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"目录无效或无权创建: {e}")
+    return {"status": "success", "output_dir": str(OUTPUT_DIR.resolve())}
+
 @app.get("/api/open-folder")
-def open_output_folder():
+@app.post("/api/open-folder")
+def open_output_folder(path: Optional[str] = None):
     try:
-        os.startfile(OUTPUT_DIR)
-        return {"status": "success", "path": str(OUTPUT_DIR)}
+        target = Path(path) if path else OUTPUT_DIR
+        target.mkdir(parents=True, exist_ok=True)
+        try:
+            os.startfile(str(target))
+        except Exception:
+            subprocess.Popen(["explorer.exe", str(target)])
+        return {"status": "success", "path": str(target)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        try:
+            subprocess.Popen(["explorer.exe", str(OUTPUT_DIR)])
+            return {"status": "success", "path": str(OUTPUT_DIR)}
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=str(e2))
 
 def open_browser_later():
     time.sleep(1.8)

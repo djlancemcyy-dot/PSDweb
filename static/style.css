@@ -2607,3 +2607,450 @@ body.qz-app {
 #stage-shoes-layer > * {
   pointer-events: auto;
 }
+
+
+/* ==========================================================================
+   v2.4.2 Comprehensive 18-Item Industrial Ergonomic Upgrade
+   ========================================================================== */
+
+:root {
+  --stage-scale: 0.25;
+}
+
+/* 1. Canvas Interactive Handles Inverse-Scale Physical Compensation */
+.stage-shoe-toolbar,
+.stage-logo-element > div[style*="position: absolute"][style*="top: -22px"],
+.stage-logo-element .stage-logo-toolbar {
+  transform-origin: center bottom !important;
+  transform: scale(calc(1 / var(--stage-scale, 0.25))) !important;
+  z-index: 120 !important;
+  pointer-events: auto !important;
+}
+
+.stage-shoe-toolbar button,
+.stage-logo-element button {
+  min-height: 26px !important;
+  min-width: 26px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 2. Sidebars Collapse & Splitter Resizing */
+.qz-sidebar-rail.collapsed,
+.qz-specs-panel.collapsed {
+  width: 0px !important;
+  min-width: 0px !important;
+  max-width: 0px !important;
+  padding: 0 !important;
+  border-right: none !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+.qz-splitter {
+  width: 6px;
+  min-width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  transition: background 0.15s ease;
+  z-index: 45;
+  user-select: none;
+}
+.qz-splitter:hover, .qz-splitter.dragging {
+  background: var(--brand-primary, #10b981) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+
+.rail-collapse-btn {
+  background: transparent;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.rail-collapse-btn:hover {
+  background: var(--brand-primary, #10b981);
+  color: #ffffff;
+  border-color: var(--brand-primary, #10b981);
+}
+
+/* 3. Specs Panel Tag Cloud Max-Height & Scrolling */
+.tag-scroll-box {
+  max-height: 80px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 3px 2px;
+  scrollbar-width: thin;
+}
+.tag-scroll-box::-webkit-scrollbar {
+  width: 4px;
+}
+.tag-scroll-box::-webkit-scrollbar-thumb {
+  background: var(--border-light, #cbd5e1);
+  border-radius: 4px;
+}
+.btn-tag-add-inline {
+  padding: 2px 7px;
+  font-size: 11px;
+  border: 1px dashed var(--brand-primary, #10b981);
+  color: var(--brand-primary, #10b981);
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-tag-add-inline:hover {
+  background: var(--brand-primary, #10b981);
+  color: #ffffff;
+}
+
+/* 4. Canvas Viewport Free Pan & Zoom Navigation */
+.canvas-viewport {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-canvas, #0f172a);
+  user-select: none;
+}
+.canvas-viewport.panning {
+  cursor: grabbing !important;
+}
+.canvas-viewport.can-pan {
+  cursor: grab !important;
+}
+
+#stage-scale-container {
+  transition: transform 0.05s ease-out;
+  transform-origin: 0 0;
+}
+
+/* 5. Quick Guide Popover */
+.guide-trigger-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.quick-guide-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 290px;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  z-index: 250;
+  display: none;
+}
+[data-theme="dark"] .quick-guide-popover {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+.quick-guide-popover.show,
+.guide-trigger-wrap:hover .quick-guide-popover {
+  display: block;
+  animation: qz-fade-in 0.18s ease-out;
+}
+
+/* 6. Right Materials Drawer (悬挂式折叠抽屉) */
+.materials-drawer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  background: var(--bg-surface, #ffffff);
+  border-left: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  z-index: 80;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+  overflow: hidden;
+}
+[data-theme="dark"] .materials-drawer {
+  background: #1e293b;
+  border-left-color: #334155;
+}
+.materials-drawer.open {
+  width: 350px;
+  box-shadow: -8px 0 25px rgba(0, 0, 0, 0.2);
+}
+.drawer-handle {
+  width: 36px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  gap: 12px;
+  background: var(--bg-hover, #f8fafc);
+  border-right: 1px solid var(--border-color, #e2e8f0);
+  flex-shrink: 0;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+[data-theme="dark"] .drawer-handle {
+  background: #0f172a;
+  border-right-color: #334155;
+}
+.drawer-handle:hover {
+  background: var(--brand-primary, #10b981);
+  color: #ffffff;
+}
+.drawer-handle-text {
+  writing-mode: vertical-rl;
+  letter-spacing: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.drawer-badge {
+  background: var(--brand-primary, #10b981);
+  color: #ffffff;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 10px;
+}
+.drawer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 314px;
+  padding: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.drawer-logos-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 4px 2px 20px 2px;
+}
+
+/* 7. Bottom Drawer [方案 B] & Hover Action Overlays */
+.qz-bottom-drawer {
+  position: relative;
+  background: var(--bg-surface, #ffffff);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transition: height 0.2s ease;
+}
+[data-theme="dark"] .qz-bottom-drawer {
+  background: #1e293b;
+  border-top-color: #334155;
+}
+.qz-bottom-drawer.collapsed {
+  height: 38px !important;
+  overflow: hidden;
+}
+.drawer-header-bar {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  background: var(--bg-hover, #f8fafc);
+}
+[data-theme="dark"] .drawer-header-bar {
+  background: #0f172a;
+  border-bottom-color: #334155;
+}
+.drawer-body-wrap {
+  display: flex;
+  align-items: center;
+  height: 140px;
+  padding: 8px 14px;
+  gap: 12px;
+  overflow: hidden;
+}
+.bottom-shoes-scroll {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  height: 100%;
+  padding-bottom: 4px;
+}
+.colors-quick-island {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 10px;
+  border-left: 1px solid var(--border-color, #e2e8f0);
+  flex-shrink: 0;
+}
+[data-theme="dark"] .colors-quick-island {
+  border-left-color: #334155;
+}
+
+/* Shoe Card Hover Overlay */
+.shoe-tray-card {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color, #e2e8f0);
+  background: var(--bg-surface, #ffffff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+[data-theme="dark"] .shoe-tray-card {
+  background: #0f172a;
+  border-color: #334155;
+}
+.shoe-tray-card.selected {
+  border-color: var(--brand-primary, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+.shoe-card-overlay-actions {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.shoe-tray-card:hover .shoe-card-overlay-actions,
+.shoe-tray-card.active-touch .shoe-card-overlay-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.overlay-action-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #ffffff;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  width: 82%;
+  text-align: center;
+  transition: all 0.12s ease;
+}
+.overlay-action-btn:hover {
+  background: #ffffff;
+  color: #0f172a;
+}
+.overlay-action-btn.danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+/* 8. Focused Product Editing View in Library */
+#prod-edit-form.active {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+}
+#prod-library-list-view.hidden {
+  display: none !important;
+}
+
+/* 9. AI OCR Image Dropzone */
+.ocr-image-dropzone {
+  border: 2px dashed var(--brand-primary, #10b981);
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
+  background: var(--bg-hover, #f8fafc);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+[data-theme="dark"] .ocr-image-dropzone {
+  background: #0f172a;
+}
+.ocr-image-dropzone.dragover {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: #059669;
+}
+
+
+.guide-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.guide-popover-card {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+  z-index: 300;
+  box-sizing: border-box;
+}
+[data-theme="dark"] .guide-popover-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+.guide-popover-card.show {
+  display: block;
+  animation: qz-fade-in 0.15s ease-out;
+}
+.guide-pop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-light, #f1f5f9);
+  padding-bottom: 6px;
+}
+.guide-pop-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 0 4px;
+}
+.guide-pop-list {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
