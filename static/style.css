@@ -2770,11 +2770,10 @@ body.qz-app {
 
 /* 6. Right Materials Drawer (悬挂式折叠抽屉) */
 .materials-drawer {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  position: relative;
+  height: 100%;
   width: 36px;
+  flex-shrink: 0;
   background: var(--bg-surface, #ffffff);
   border-left: 1px solid var(--border-color, #e2e8f0);
   display: flex;
@@ -2787,7 +2786,7 @@ body.qz-app {
   border-left-color: #334155;
 }
 .materials-drawer.open {
-  width: 350px;
+  width: 380px;
   box-shadow: -8px 0 25px rgba(0, 0, 0, 0.2);
 }
 .drawer-handle {
@@ -3699,4 +3698,84 @@ body.qz-app {
   background: var(--brand-primary, #059669) !important;
   color: #ffffff !important;
   border-color: var(--brand-primary, #059669) !important;
+}
+
+/* 3. Logo Quick Floating Controls (↺ ↻ 0° 📋 ✕) - Physical Inverse-Scale Compensation */
+.stage-logo-element.active-selected,
+.stage-logo-element.selected,
+.stage-canvas-logo.selected {
+  outline: 2px dashed #0284c7 !important;
+  outline-offset: 3px !important;
+}
+.logo-quick-ctrls {
+  position: absolute;
+  top: calc(-12px - 34px / var(--stage-scale, 0.25));
+  left: 50%;
+  transform-origin: center bottom !important;
+  transform: translateX(-50%) scale(calc(1 / var(--stage-scale, 0.25))) !important;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  padding: 3px 6px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+.stage-logo-element:hover .logo-quick-ctrls,
+.stage-logo-element.active-selected .logo-quick-ctrls,
+.stage-logo-element.selected .logo-quick-ctrls,
+.stage-canvas-logo:hover .logo-quick-ctrls,
+.stage-canvas-logo.selected .logo-quick-ctrls {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.logo-quick-ctrls button {
+  padding: 3px 8px !important;
+  font-size: 13px !important;
+  height: 28px !important;
+  line-height: 22px !important;
+  min-width: 28px !important;
+  font-weight: 700 !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.logo-quick-ctrls button:hover {
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+.logo-quick-ctrls button.btn-logo-del:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* 4. Logo Corner Resize Handle with Physical Size Compensation */
+.logo-resize-handle {
+  display: none;
+  position: absolute;
+  right: calc(-7px / var(--stage-scale, 0.25));
+  bottom: calc(-7px / var(--stage-scale, 0.25));
+  width: calc(14px / var(--stage-scale, 0.25));
+  height: calc(14px / var(--stage-scale, 0.25));
+  background: #ffffff;
+  border: calc(2px / var(--stage-scale, 0.25)) solid #0284c7;
+  border-radius: 2px;
+  z-index: 180;
+  cursor: nwse-resize !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.stage-logo-element:hover .logo-resize-handle,
+.stage-logo-element.active-selected .logo-resize-handle,
+.stage-logo-element.selected .logo-resize-handle {
+  display: block;
 }

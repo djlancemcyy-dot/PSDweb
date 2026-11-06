@@ -3975,6 +3975,23 @@ function setupSplitterAndSidebarCollapse() {
 
 // 4. Unified Material Library in Bottom Right Pane (Items 6, 7, 10, 12, 13, 14)
 async function setupMaterialsDrawer() {
+  const matDrawer = document.getElementById("materials-drawer");
+  const btnToggleMatDrawer = document.getElementById("btn-toggle-materials-drawer");
+  const btnCloseMatDrawer = document.getElementById("btn-close-materials-drawer");
+
+  if (btnToggleMatDrawer && matDrawer) {
+    btnToggleMatDrawer.onclick = () => {
+      matDrawer.classList.toggle("open");
+      setTimeout(setupStageScale, 260);
+    };
+  }
+  if (btnCloseMatDrawer && matDrawer) {
+    btnCloseMatDrawer.onclick = (e) => {
+      e.stopPropagation();
+      matDrawer.classList.remove("open");
+      setTimeout(setupStageScale, 260);
+    };
+  }
   const searchInput = document.getElementById("drawer-logo-search");
   const btnBatchMode = document.getElementById("btn-toggle-batch-mode");
   const btnImportUnified = document.getElementById("btn-import-material-unified");
@@ -4254,9 +4271,8 @@ function renderMaterialsDrawerLogos() {
       </div>
       <div class="logo-card-title-text" style="margin-top:4px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${logo.name}">${logo.name}</div>
       <div class="logo-card-hover-actions">
-        <button class="mat-hover-btn btn-copy" title="📋 复制素材，可在画板任意鞋上按 Ctrl+V 粘贴">📋 复制</button>
-        <button class="mat-hover-btn btn-all-shoes" title="⚡ 一键将该标贴应用到所有配色">⚡ 全色</button>
-        <button class="mat-hover-btn btn-apply" title="➕ 放置到当前选中的鞋款">➕ 放置</button>
+        <button class="mat-hover-btn btn-apply" title="➕ 置入到当前选中的鞋款">➕ 置入</button>
+        <button class="mat-hover-btn btn-all-shoes" title="⚡ 一键置入到所有配色">⚡ 全色</button>
         <button class="mat-hover-btn danger btn-del" title="删除素材">🗑️</button>
       </div>
     `;
@@ -4303,12 +4319,7 @@ function renderMaterialsDrawerLogos() {
       };
     }
 
-    // 📋 复制 (Direct clipboard copy for Ctrl+V paste)
-    card.querySelector(".btn-copy").onclick = (e) => {
-      e.stopPropagation();
-      state.clipboard_logo = { ...logo };
-      showToast(`📋 已复制素材【${logo.name}】！可在画板直接按 Ctrl+V 粘贴到任意鞋款`);
-    };
+
 
     // ⚡ 全色 (Apply to all shoes at once)
     card.querySelector(".btn-all-shoes").onclick = (e) => {

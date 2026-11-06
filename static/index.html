@@ -416,17 +416,65 @@
         </div>
       </div>
     </main>
+
+    <!-- Right-Side Floating Material Library Drawer (复原至右侧边栏，垂直全高展开，空间开阔) -->
+    <aside class="materials-drawer open" id="materials-drawer">
+      <div class="drawer-handle" id="btn-toggle-materials-drawer" title="点击展开/收起标贴素材库">
+        <span class="drawer-handle-icon">🎨</span>
+        <span class="drawer-handle-text">标贴图案库</span>
+        <span class="drawer-badge" id="materials-count-badge">0</span>
+      </div>
+      <div class="drawer-content">
+        <div class="drawer-header">
+          <div class="drawer-title-row">
+            <span class="drawer-title">🎨 标贴与图案素材库</span>
+            <span class="drawer-count-chip" id="drawer-total-count">0款</span>
+          </div>
+          <div class="drawer-header-actions">
+            <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-import-material-unified" title="选择图片或文件夹导入">📂 导入素材</button>
+            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-toggle-batch-mode" title="多选批量管理">☑️ 批量管理</button>
+            <button class="btn-drawer-close" id="btn-close-materials-drawer" title="收起素材库">✕</button>
+          </div>
+        </div>
+        <div class="drawer-search-row" style="margin-top: 8px;">
+          <input type="text" id="drawer-logo-search" placeholder="🔍 搜索素材名称..." class="drawer-search-input">
+        </div>
+        <div class="drawer-cat-tabs" id="drawer-cat-tabs" style="margin-top: 8px;">
+          <!-- Dynamic Category Tabs -->
+        </div>
+
+        <!-- Batch Action Toolbar (Visible when in batch mode) -->
+        <div class="mat-batch-bar" id="mat-batch-bar" style="display: none; margin-top: 8px;">
+          <label class="batch-select-all-label">
+            <input type="checkbox" id="mat-batch-check-all"> 全选本页
+          </label>
+          <span class="batch-selected-count" id="mat-batch-count-text">已选中 0 款</span>
+          <div class="batch-actions-group">
+            <select id="mat-batch-move-select" class="qz-input qz-input-sm" style="width: 120px; font-size: 11px;">
+              <option value="">移动至分组...</option>
+            </select>
+            <button class="qz-btn qz-btn-danger qz-btn-xs" id="btn-mat-batch-delete">🗑️ 删除</button>
+            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-mat-batch-cancel">退出多选</button>
+          </div>
+        </div>
+
+        <!-- Material Logos Grid -->
+        <div class="drawer-logos-scroll" id="drawer-logos-grid" style="margin-top: 10px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </aside>
+
   </div> <!-- /qz-workspace -->
 
-    <!-- 3. Bottom Unified Drawer: 款式颜色 (左区，支持自适应双行) + 素材库 (右区，支持分类/多选/拖拽) -->
+  <!-- 3. Bottom Functional Drawer: 款式颜色画卷 (全宽水平平展，空间阔绰) -->
   <footer class="qz-bottom-drawer" id="bottom-drawer">
-    <!-- Dual-Pane Top Action Bar -->
     <div class="drawer-header-bar">
-      <!-- Left: Shoe Colors & Cutout Controls -->
       <div class="drawer-left-header">
         <div class="drawer-title-group">
-          <span class="drawer-title">👟 款式颜色</span>
+          <span class="drawer-title">👟 款式颜色画卷</span>
           <span class="drawer-count-badge" id="shoe-count-tag">0 / 15 款</span>
+          <span class="drawer-sub-tip" style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">点击卡片选色 · 悬浮换图去底 · 支持直接按 Ctrl+V 粘贴新图</span>
         </div>
         <div class="drawer-cutout-actions">
           <button class="bar-action-btn qz-btn-sm" id="btn-single-cutout" title="对当前选中的这双鞋进行高精智能去底">
@@ -441,86 +489,29 @@
         </div>
       </div>
 
-      <!-- Right: Material Library Controls -->
       <div class="drawer-right-header">
-        <div class="drawer-title-group">
-          <span class="drawer-title">🎨 素材库</span>
-          <span class="drawer-count-badge" id="materials-count-badge">0 款</span>
-        </div>
-        <div class="drawer-material-actions">
-          <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-import-material-unified" title="选择图片文件或文件夹一键导入素材库">
-            <span>📂</span> 导入素材
-          </button>
-          <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-toggle-batch-mode" title="开启多选批量移动或删除">
-            <span>☑️</span> 批量管理
-          </button>
-          <button class="btn-drawer-collapse" id="btn-toggle-drawer" title="收起/展开底部功能区">
-            <span id="drawer-collapse-icon">▼</span>
-          </button>
-        </div>
+        <button class="btn-drawer-collapse" id="btn-toggle-drawer" title="收起/展开底部功能区">
+          <span id="drawer-collapse-icon">▼</span>
+        </button>
       </div>
     </div>
 
-    <!-- Dual-Pane Drawer Content Body -->
-    <div class="drawer-content-body" id="drawer-content-body">
-      
-      <!-- Left Zone: Shoe Color Cards Filmstrip (Auto 2-Rows on Overflow) -->
-      <div class="drawer-colors-section" id="drawer-colors-section">
-        <!-- Upload Dropzone -->
-        <div class="drawer-upload-pane">
-          <div class="qz-dropzone" id="upload-dropzone" title="点击或拖入照片，亦可直接按 Ctrl+V 粘贴">
-            <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
-            <div class="dropzone-icon">📷</div>
-            <div class="dropzone-text"><strong>点击上传</strong>/拖入照片</div>
-            <div class="dropzone-hint">⚡ 支持 Ctrl+V 粘贴</div>
-          </div>
-        </div>
-
-        <!-- Shoe Cards Horizontal Grid (Supports 2 Rows Wrapping) -->
-        <div class="drawer-colors-track-wrap">
-          <div class="colors-wrap-grid" id="shoe-list">
-            <!-- Populated by JS -->
-          </div>
+    <!-- Drawer Content Body: Full-width Filmstrip -->
+    <div class="drawer-content-body" id="drawer-content-body" style="padding: 10px 16px; display: flex; align-items: center; gap: 14px; overflow: hidden; height: calc(100% - 38px);">
+      <div class="drawer-upload-pane" style="flex-shrink: 0;">
+        <div class="qz-dropzone" id="upload-dropzone" title="点击或拖入照片，亦可直接按 Ctrl+V 粘贴">
+          <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+          <div class="dropzone-icon">📷</div>
+          <div class="dropzone-text"><strong>点击上传</strong>/拖入照片</div>
+          <div class="dropzone-hint">⚡ 支持 Ctrl+V 粘贴</div>
         </div>
       </div>
 
-      <!-- Divider between Colors and Material Library -->
-      <div class="drawer-v-divider"></div>
-
-      <!-- Right Zone: Material Library (Categories + Search + Grid + Batch Bar) -->
-      <div class="drawer-material-section" id="drawer-material-section">
-        <div class="mat-section-top">
-          <!-- Dynamic Category Tabs -->
-          <div class="drawer-cat-tabs" id="drawer-cat-tabs">
-            <!-- Populated by JS: All, Core, 22SS, Custom + [➕ 新增分类] -->
-          </div>
-          <!-- Search Bar -->
-          <div class="mat-search-wrap">
-            <input type="text" id="drawer-logo-search" placeholder="🔍 搜索素材名称..." class="drawer-search-input">
-          </div>
-        </div>
-
-        <!-- Batch Action Toolbar (Visible when in batch mode) -->
-        <div class="mat-batch-bar" id="mat-batch-bar" style="display: none;">
-          <label class="batch-select-all-label">
-            <input type="checkbox" id="mat-batch-check-all"> 全选本页
-          </label>
-          <span class="batch-selected-count" id="mat-batch-count-text">已选中 0 款</span>
-          <div class="batch-actions-group">
-            <select id="mat-batch-move-select" class="qz-input qz-input-sm" style="width: 130px; font-size: 11px;">
-              <option value="">移动至分组...</option>
-            </select>
-            <button class="qz-btn qz-btn-danger qz-btn-xs" id="btn-mat-batch-delete">🗑️ 批量删除</button>
-            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-mat-batch-cancel">退出多选</button>
-          </div>
-        </div>
-
-        <!-- Material Logos Grid -->
-        <div class="drawer-logos-scroll" id="drawer-logos-grid">
-          <!-- Populated by JS with checkerboard transparent preview & drag handles -->
+      <div class="drawer-colors-track-wrap" style="flex: 1; overflow-x: auto; overflow-y: hidden; height: 100%; display: flex; align-items: center;">
+        <div class="colors-wrap-grid" id="shoe-list" style="display: flex; gap: 12px; align-items: center; flex-wrap: nowrap;">
+          <!-- Populated by JS -->
         </div>
       </div>
-
     </div>
   </footer>
 

@@ -1636,7 +1636,7 @@ def calculate_ai_slots(num_shoes: int) -> List[Dict[str, Any]]:
     if num_shoes <= 0:
         return []
         
-    area_x1 = 950
+    area_x1 = 860
     area_x2 = 3360
     area_y1 = 760
     area_y2 = 2360
@@ -1644,24 +1644,24 @@ def calculate_ai_slots(num_shoes: int) -> List[Dict[str, Any]]:
     total_h = area_y2 - area_y1
 
     if num_shoes == 1:
-        return [{ "cx": 2150, "cy": 1480, "max_w": 1400, "max_h": 800, "align": "center" }]
+        return [{ "cx": 2000, "cy": 1480, "max_w": 1400, "max_h": 800, "align": "center" }]
     elif num_shoes == 2:
         return [
-            { "cx": 1550, "cy": 1480, "max_w": 1050, "max_h": 650, "align": "center" },
-            { "cx": 2750, "cy": 1480, "max_w": 1050, "max_h": 650, "align": "center" }
+            { "cx": 1340, "cy": 1080, "max_w": 1050, "max_h": 600, "align": "left" },
+            { "cx": 1340, "cy": 1840, "max_w": 1050, "max_h": 600, "align": "left" }
         ]
     elif num_shoes == 3:
         return [
-            { "cx": 1550, "cy": 1150, "max_w": 1000, "max_h": 560, "align": "center" },
-            { "cx": 2750, "cy": 1150, "max_w": 1000, "max_h": 560, "align": "center" },
-            { "cx": 2150, "cy": 1850, "max_w": 1000, "max_h": 560, "align": "center" }
+            { "cx": 1340, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
+            { "cx": 2550, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
+            { "cx": 1340, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" }
         ]
     elif num_shoes == 4:
         return [
-            { "cx": 1510, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 2720, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 1510, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 2720, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" }
+            { "cx": 1340, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
+            { "cx": 2550, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
+            { "cx": 1340, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" },
+            { "cx": 2550, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" }
         ]
         
     if num_shoes <= 6:
