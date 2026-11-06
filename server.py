@@ -419,7 +419,13 @@ class SnapshotRequest(BaseModel):
     shoes: List[ShoeItem]
 
 class BatchCutoutRequest(BaseModel):
-    filenames: List[str]
+    filenames: Optional[List[str]] = None
+    raw_filenames: Optional[List[str]] = None
+    force: bool = False
+    model_id: Optional[str] = None
+
+class SelectModelRequest(BaseModel):
+    model_id: str
 
 class BatchRenderRequest(BaseModel):
     tasks: List[TaskItem]
@@ -1148,7 +1154,7 @@ async def upload_raw_photo(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def do_single_cutout(raw_filename: str) -> Dict[str, Any]:
+def do_single_cutout(raw_filename: str, force: bool = False, model_id: Optional[str] = None) -> Dict[str, Any]:
     raw_path = UPLOADS_DIR / raw_filename
     if not raw_path.exists():
         raise FileNotFoundError(f"原图不存在: {raw_filename}")
@@ -1157,22 +1163,26 @@ def do_single_cutout(raw_filename: str) -> Dict[str, Any]:
     cutout_filename = f"cutout_{stem.replace('raw_', '')}.png"
     cutout_path = UPLOADS_DIR / cutout_filename
     
-    if cutout_path.exists():
+    if not force and cutout_path.exists() and not model_id:
         with Image.open(cutout_path) as im:
             return {
                 "cutout_filename": cutout_filename,
                 "cutout_url": f"/static/uploads/{cutout_filename}",
                 "width": im.width,
-                "height": im.height
+                "height": im.height,
+                "model_used": shoe_engine.active_model_id if shoe_engine else "rembg"
             }
             
     if shoe_engine:
+        if model_id and model_id != shoe_engine.active_model_id:
+            shoe_engine.switch_model(model_id)
         res = shoe_engine.process_shoe(str(raw_path), str(cutout_path), crop=True, pad=8)
         return {
             "cutout_filename": cutout_filename,
             "cutout_url": f"/static/uploads/{cutout_filename}",
             "width": res["width"],
-            "height": res["height"]
+            "height": res["height"],
+            "model_used": res.get("model_id", shoe_engine.active_model_id)
         }
     elif rembg_session:
         pil_raw = Image.open(raw_path).convert("RGB")
@@ -1190,12 +1200,35 @@ def do_single_cutout(raw_filename: str) -> Dict[str, Any]:
     else:
         raise RuntimeError("未找到可用的抠图引擎！")
 
+@app.get("/api/cutout/models")
+def get_cutout_models():
+    if not shoe_engine:
+        return {"status": "warning", "models": [], "active_model": None}
+    return {
+        "status": "success",
+        "models": shoe_engine.get_available_models(),
+        "active_model": shoe_engine.get_active_model()
+    }
+
+@app.post("/api/cutout/models/select")
+def select_cutout_model(req: SelectModelRequest):
+    if not shoe_engine:
+        raise HTTPException(status_code=500, detail="鞋靴抠图引擎未初始化")
+    try:
+        res = shoe_engine.switch_model(req.model_id)
+        return {"status": "success", "result": res, "active_model": shoe_engine.get_active_model()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"切换模型失败: {e}")
+
 @app.post("/api/cutout-batch")
 def process_batch_cutout(req: BatchCutoutRequest):
+    target_names = req.filenames or req.raw_filenames or []
+    if req.model_id and shoe_engine:
+        shoe_engine.switch_model(req.model_id)
     results = []
-    for rname in req.filenames:
+    for rname in target_names:
         try:
-            info = do_single_cutout(rname)
+            info = do_single_cutout(rname, force=req.force, model_id=req.model_id)
             results.append({"raw_filename": rname, "status": "success", **info})
         except Exception as e:
             results.append({"raw_filename": rname, "status": "error", "error": str(e)})

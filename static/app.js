@@ -24,6 +24,8 @@ const state = {
   },
   is_editing_template: false,
   replacing_shoe_id: null,
+  cutout_models: [],
+  active_cutout_model: null,
   replacing_logo_id: null,
   current_typo_target: null,
   logo_category: "all",
@@ -112,6 +114,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupAiOcrDropzone();
   setupClipboardPaste();
   setupInlineTagAdders();
+  loadCutoutModels();
+  setupQuickModelSelectorButton();
 
   if (window.location.search.includes("open=library")) {
     openProductLibraryModal();
@@ -4160,4 +4164,107 @@ function setupInlineTagAdders() {
       }
     };
   });
+}
+
+
+// --- AI Cutout Models Management & Scenario Switcher ---
+async function loadCutoutModels() {
+  try {
+    const res = await fetch("/api/cutout/models");
+    const data = await res.json();
+    if (data.status === "success" && data.models) {
+      state.cutout_models = data.models;
+      state.active_cutout_model = data.active_model;
+      updateQuickModelBadge();
+      renderCutoutModelCards();
+    }
+  } catch (err) {
+    console.warn("加载抠图模型列表失败:", err);
+  }
+}
+
+function updateQuickModelBadge() {
+  const badgeEl = document.getElementById("quick-model-badge");
+  if (!badgeEl) return;
+  if (state.active_cutout_model) {
+    badgeEl.textContent = state.active_cutout_model.badge || "鞋靴送审专精";
+    badgeEl.title = `${state.active_cutout_model.name}\n${state.active_cutout_model.scenario}`;
+  } else {
+    badgeEl.textContent = "鞋靴送审专精";
+  }
+}
+
+function renderCutoutModelCards() {
+  const grid = document.getElementById("settings-model-cards-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+
+  const models = state.cutout_models || [];
+  models.forEach(m => {
+    const isActive = state.active_cutout_model && state.active_cutout_model.id === m.id;
+    const card = document.createElement("div");
+    card.className = `model-select-card ${isActive ? "active" : ""}`;
+    card.title = `点击切换为【${m.badge}】模式`;
+
+    card.innerHTML = `
+      <div class="model-card-header">
+        <div class="model-card-title-row">
+          <div class="model-radio-circle"></div>
+          <span class="model-card-name">${m.name}</span>
+        </div>
+        <span class="model-badge-chip">${m.badge}</span>
+      </div>
+      <div class="model-scenario-desc">
+        ${m.scenario}
+      </div>
+      <div class="model-tags-row">
+        <span class="model-tag-item">📐 分辨率: ${m.resolution}</span>
+        <span class="model-tag-item">⚡ 速度: ${m.speed}</span>
+        <span class="model-tag-item">📦 体积: ${m.file_size_mb || m.memory}MB</span>
+      </div>
+    `;
+
+    card.onclick = () => selectCutoutModel(m.id);
+    grid.appendChild(card);
+  });
+}
+
+async function selectCutoutModel(modelId) {
+  showLoading("正在热加载切换 AI 抠图模型权重...");
+  try {
+    const res = await fetch("/api/cutout/models/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: modelId })
+    });
+    const data = await res.json();
+    hideLoading();
+    if (data.status === "success" && data.active_model) {
+      state.active_cutout_model = data.active_model;
+      updateQuickModelBadge();
+      renderCutoutModelCards();
+      showToast(`✂️ 已切换抠图引擎为【${data.active_model.badge} · ${data.active_model.name}】！`);
+    } else {
+      showToast(data.detail || "切换模型失败");
+    }
+  } catch (err) {
+    hideLoading();
+    showToast(`切换模型失败: ${err.message}`);
+  }
+}
+
+function setupQuickModelSelectorButton() {
+  const btn = document.getElementById("btn-quick-model-select");
+  if (!btn) return;
+  btn.onclick = () => {
+    const modal = document.getElementById("modal-settings");
+    if (modal) {
+      modal.classList.add("show");
+      loadCutoutModels();
+      const grid = document.getElementById("settings-model-cards-grid");
+      if (grid) {
+        grid.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  };
 }

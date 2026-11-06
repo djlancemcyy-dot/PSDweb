@@ -221,6 +221,9 @@
           <button class="bar-action-btn" id="btn-batch-cutout" title="对当前款式中未抠图的照片一键批量离线去底">
             <span>✂️</span> 批量去底抠图
           </button>
+          <button class="bar-action-btn btn-accent-cyan" id="btn-quick-model-select" title="点击切换当前 AI 抠图模型与适用场景">
+            <span>🎨</span> <span id="quick-model-badge">鞋靴送审专精</span> ▾
+          </button>
           <button class="bar-action-btn btn-accent-purple" id="btn-toggle-edit-template" title="点击编辑底表表头：修改工厂/样品单名称，更换品牌主LOGO">
             <span>✏️</span> 编辑底表模版
           </button>
@@ -798,6 +801,23 @@
             <button class="qz-btn qz-btn-secondary" id="btn-copy-output-path">复制路径</button>
           </div>
           <div class="form-hint-text">💡 生成的 300DPI JPEG 印刷送审大图及 Photoshop 原生分层 PSD 工程文件均存放于此。</div>
+        </div>
+
+        <div class="form-divider" style="margin: 16px 0; border-top: 1px solid var(--border-light);"></div>
+
+        <div class="form-row">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+            <label class="qz-label" style="font-weight: 700; font-size: 13px; color: var(--text-main);">
+              🎨 AI 离线抠图模型选择（按鞋样材质与场景切换）
+            </label>
+            <span style="font-size: 11px; color: var(--brand-primary); font-weight: 600;">⚡ 实时热切换·零等待</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
+            系统已内置 4 套纯本地离线深度模型，可根据面料特性（如光面皮、反绒毛面、网布）自由选配：
+          </div>
+          <div class="model-cards-grid" id="settings-model-cards-grid">
+            <!-- Populated dynamically by JS with rich Chinese scenario annotations -->
+          </div>
         </div>
       </div>
       <div class="qz-modal-foot">

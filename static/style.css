@@ -3054,3 +3054,130 @@ body.qz-app {
   line-height: 1.7;
   color: var(--text-secondary);
 }
+
+
+/* ==========================================================================
+   AI Cutout Model Selection Cards & Chinese Scenario Annotations
+   ========================================================================== */
+
+.model-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .model-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.model-select-card {
+  position: relative;
+  border: 2px solid var(--border-color, #e2e8f0);
+  background: var(--bg-surface, #ffffff);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+}
+[data-theme="dark"] .model-select-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+.model-select-card:hover {
+  border-color: var(--brand-primary, #10b981);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+.model-select-card.active {
+  border-color: var(--brand-primary, #10b981) !important;
+  background: rgba(16, 185, 129, 0.06) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+.model-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.model-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.model-radio-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.model-select-card.active .model-radio-circle {
+  border-color: var(--brand-primary, #10b981);
+  background: var(--brand-primary, #10b981);
+}
+.model-radio-circle::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: none;
+}
+.model-select-card.active .model-radio-circle::after {
+  display: block;
+}
+.model-card-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-main, #0f172a);
+}
+[data-theme="dark"] .model-card-name {
+  color: #f1f5f9;
+}
+.model-badge-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--brand-primary, #10b981);
+  white-space: nowrap;
+}
+.model-scenario-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary, #475569);
+  background: var(--bg-hover, #f8fafc);
+  padding: 6px 8px;
+  border-radius: 6px;
+  border-left: 3px solid var(--brand-primary, #10b981);
+}
+[data-theme="dark"] .model-scenario-desc {
+  background: #0f172a;
+  color: #cbd5e1;
+}
+.model-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted, #94a3b8);
+}
+.model-tag-item {
+  background: var(--bg-input, #f1f5f9);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+[data-theme="dark"] .model-tag-item {
+  background: #334155;
+  color: #94a3b8;
+}
