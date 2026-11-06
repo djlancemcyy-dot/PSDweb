@@ -1213,9 +1213,36 @@ def export_photoshop_native_psd(
     shoes_render_info: List[Dict[str, Any]],
     num_shoes: int
 ) -> bool:
+    psApp = None
+    co_inited = False
     try:
         import win32com.client
-        psApp = win32com.client.Dispatch("Photoshop.Application")
+        import pythoncom
+        import time, subprocess
+        try:
+            pythoncom.CoInitialize()
+            co_inited = True
+        except Exception:
+            pass
+        for attempt in range(2):
+            try:
+                psApp = win32com.client.Dispatch("Photoshop.Application")
+                break
+            except Exception as ex_disp:
+                print(f"[Render-Native] COM Dispatch 尝试 {attempt+1} 失败: {ex_disp}")
+                if attempt == 0:
+                    for cand_exe in [
+                        r"C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe",
+                        r"C:\Program Files\Adobe\Adobe Photoshop 2023\Photoshop.exe",
+                        r"C:\Program Files\Adobe\Adobe Photoshop 2022\Photoshop.exe"
+                    ]:
+                        if os.path.exists(cand_exe):
+                            subprocess.Popen([cand_exe, "/Automation"])
+                            time.sleep(8)
+                            break
+        if not psApp:
+            print("[Render-Native] 无法连接到 Photoshop.Application COM 实例")
+            return False
         psApp.DisplayDialogs = 3
         
         psd_target = str(out_psd_filepath).replace("\\", "/")
@@ -1372,6 +1399,17 @@ def export_photoshop_native_psd(
     except Exception as e:
         print(f"[Render-Native] Photoshop COM 异常: {e}")
         return False
+    finally:
+        if psApp:
+            try:
+                del psApp
+            except Exception:
+                pass
+        if co_inited:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
 
 def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     tmpl_cfg = load_template_config()
@@ -1587,24 +1625,8 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
         num_shoes
     )
     
-    if not has_psd and HAS_PYTOSHOP:
-        try:
-            base_bg = Image.new("RGBA", (3508, 2480), (255, 255, 255, 255))
-            p_bg = pil_to_psd_layer(base_bg, "底色背景", 0, 0)
-            p_lines = pil_to_psd_layer(lines_layer, "表格线框线条", 0, 0)
-            all_layers = [p_bg, p_lines] + pytoshop_groups
-            psd_doc = nested_layers.nested_layers_to_psd(
-                all_layers,
-                color_mode=enums.ColorMode.rgb,
-                size=(3508, 2480),
-                compression=enums.Compression.raw
-            )
-            with open(out_psd_filepath, "wb") as f_psd:
-                psd_doc.write(f_psd)
-            has_psd = True
-            print(f"[Render] pytoshop 独立图层分层 PSD 导出成功: {out_psd_filename}")
-        except Exception as e_psd:
-            print(f"[Render] pytoshop 降级导出失败: {e_psd}")
+    if not has_psd:
+        print("[Render] 本机未检测到运行中的 Adobe Photoshop，跳过生成原生 TypeLayer PSD，仅交付 300DPI 印刷大图。")
             
     return {
         "status": "success",

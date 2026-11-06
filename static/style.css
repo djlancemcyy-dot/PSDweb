@@ -929,18 +929,31 @@ body.qz-app {
   padding: 40px;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 
-/* 3508 x 2480 Aspect-Ratio Preserving Canvas Stage */
-.sheet-stage {
+/* Scale Layout Container (Dynamically matches 3508 * scale x 2480 * scale) */
+.stage-scale-container {
   position: relative;
+  flex-shrink: 0;
+  margin: auto;
+  transition: width 0.12s ease-out, height 0.12s ease-out;
+}
+
+/* 3508 x 2480 Native Precision Stage with CSS Transform Scaling */
+.sheet-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3508px !important;
+  height: 2480px !important;
+  transform-origin: top left;
   background: #ffffff;
-  aspect-ratio: 3508 / 2480 !important;
-  flex-shrink: 0 !important;
   box-shadow: var(--shadow-stage);
   border-radius: 2px;
   overflow: hidden;
   user-select: none;
+  transition: transform 0.12s ease-out;
 }
 
 .sheet-base-img {
@@ -2477,21 +2490,23 @@ body.qz-app {
 /* Template Edit Control Banner */
 .tmpl-edit-control-bar {
   position: absolute;
-  top: 20px;
+  top: 64px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 100;
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  background: rgba(15, 23, 42, 0.92);
+  gap: 24px;
+  background: rgba(15, 23, 42, 0.95);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #ffffff;
-  padding: 10px 20px;
+  padding: 8px 22px;
   border-radius: 30px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
   animation: bannerPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -2579,4 +2594,16 @@ body.qz-app {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+#stage-shoes-layer {
+  position: absolute;
+  inset: 0;
+  width: 3508px;
+  height: 2480px;
+  z-index: 10 !important;
+  pointer-events: none;
+}
+#stage-shoes-layer > * {
+  pointer-events: auto;
 }

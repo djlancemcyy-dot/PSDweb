@@ -106,60 +106,91 @@ function applyTheme(theme) {
 // --- Strict Equal-Ratio 3508:2480 Canvas Viewport Scaling ---
 function setupStageScale() {
   const viewport = document.getElementById("canvas-viewport");
-  if (!viewport || !stage) return;
+  const scaleContainer = document.getElementById("stage-scale-container");
+  if (!viewport || !stage || !scaleContainer) return;
 
-  const availW = Math.max(300, viewport.clientWidth - 80);
-  const availH = Math.max(200, viewport.clientHeight - 90);
+  const padX = 80;
+  const padY = 100;
+  const availW = Math.max(300, viewport.clientWidth - padX);
+  const availH = Math.max(200, viewport.clientHeight - padY);
   
   const scaleW = availW / STAGE_W;
   const scaleH = availH / STAGE_H;
   state.base_fit_scale = Math.min(scaleW, scaleH);
 
-  const finalScale = state.base_fit_scale * state.custom_zoom_ratio;
+  let finalScale = state.base_fit_scale;
+  if (state.zoom_mode === "100") {
+    finalScale = 1.0;
+  } else if (state.zoom_mode === "custom") {
+    finalScale = state.custom_zoom_ratio || state.base_fit_scale;
+  } else {
+    // "fit" (default)
+    state.zoom_mode = "fit";
+    finalScale = state.base_fit_scale;
+  }
   state.stage_scale = finalScale;
   
   const stageW = Math.round(STAGE_W * finalScale);
   const stageH = Math.round(STAGE_H * finalScale);
   
-  stage.style.width = `${stageW}px`;
-  stage.style.height = `${stageH}px`;
-  stage.style.aspectRatio = "3508 / 2480";
-  stage.style.flexShrink = "0";
+  scaleContainer.style.width = `${stageW}px`;
+  scaleContainer.style.height = `${stageH}px`;
+  stage.style.width = `${STAGE_W}px`;
+  stage.style.height = `${STAGE_H}px`;
+  stage.style.transform = `scale(${finalScale})`;
+  stage.style.transformOrigin = "top left";
 
   if (zoomLevelText) {
-    if (Math.abs(state.custom_zoom_ratio - 1.0) < 0.05) {
-      zoomLevelText.textContent = "适应";
+    if (state.zoom_mode === "fit") {
+      zoomLevelText.textContent = `适应 (${Math.round(finalScale * 100)}%)`;
     } else {
-      zoomLevelText.textContent = `${Math.round(state.custom_zoom_ratio * 100)}%`;
+      zoomLevelText.textContent = `${Math.round(finalScale * 100)}%`;
     }
   }
 }
 
 function setupZoomControls() {
-  document.getElementById("btn-zoom-in").onclick = () => {
-    state.custom_zoom_ratio = Math.min(3.0, state.custom_zoom_ratio + 0.15);
-    setupStageScale();
-    updateStageUI();
-  };
-  document.getElementById("btn-zoom-out").onclick = () => {
-    state.custom_zoom_ratio = Math.max(0.3, state.custom_zoom_ratio - 0.15);
-    setupStageScale();
-    updateStageUI();
-  };
-  document.getElementById("btn-zoom-100").onclick = () => {
-    state.custom_zoom_ratio = 1.0 / state.base_fit_scale;
-    setupStageScale();
-    updateStageUI();
-  };
-  document.getElementById("btn-zoom-fit").onclick = () => {
-    state.custom_zoom_ratio = 1.0;
-    setupStageScale();
-    updateStageUI();
-  };
+  const btnIn = document.getElementById("btn-zoom-in");
+  const btnOut = document.getElementById("btn-zoom-out");
+  const btn100 = document.getElementById("btn-zoom-100");
+  const btnFit = document.getElementById("btn-zoom-fit");
+
+  if (btnIn) {
+    btnIn.onclick = () => {
+      state.zoom_mode = "custom";
+      state.custom_zoom_ratio = Math.min(3.0, (state.stage_scale || 1.0) * 1.2);
+      setupStageScale();
+      updateStageUI();
+    };
+  }
+  if (btnOut) {
+    btnOut.onclick = () => {
+      state.zoom_mode = "custom";
+      state.custom_zoom_ratio = Math.max(0.15, (state.stage_scale || 1.0) / 1.2);
+      setupStageScale();
+      updateStageUI();
+    };
+  }
+  if (btn100) {
+    btn100.onclick = () => {
+      state.zoom_mode = "100";
+      state.custom_zoom_ratio = 1.0;
+      setupStageScale();
+      updateStageUI();
+    };
+  }
+  if (btnFit) {
+    btnFit.onclick = () => {
+      state.zoom_mode = "fit";
+      state.custom_zoom_ratio = state.base_fit_scale;
+      setupStageScale();
+      updateStageUI();
+    };
+  }
 }
 
 function toStagePx(val) {
-  return Math.round(val * state.stage_scale);
+  return Math.round(val);
 }
 
 // Helpers
@@ -3072,13 +3103,12 @@ function makeLogoDraggable(logoEl, logo, shoeW, shoeH) {
 
     const onMouseMove = (ev) => {
       if (!isDragging) return;
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      const stageW = toStagePx(shoeW);
-      const stageH = toStagePx(shoeH);
+      const curScale = state.stage_scale || 1.0;
+      const dx = (ev.clientX - startX) / curScale;
+      const dy = (ev.clientY - startY) / curScale;
 
-      logo.rel_x = Math.max(-0.4, Math.min(1.4, startRelX + dx / stageW));
-      logo.rel_y = Math.max(-0.4, Math.min(1.4, startRelY + dy / stageH));
+      logo.rel_x = Math.max(-0.4, Math.min(1.4, startRelX + dx / shoeW));
+      logo.rel_y = Math.max(-0.4, Math.min(1.4, startRelY + dy / shoeH));
       logoEl.style.left = `${Math.round(logo.rel_x * 100)}%`;
       logoEl.style.top = `${Math.round(logo.rel_y * 100)}%`;
     };

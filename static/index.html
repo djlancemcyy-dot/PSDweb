@@ -210,9 +210,111 @@
         <span class="bar-tip-text">💡 鼠标按住鞋款平移 · 滚轮等比缩放 · 底部点击小帆船标贴标</span>
       </div>
 
+      <!-- 4. Floating Typography & Font Properties Bar -->
+      <div class="floating-typography-bar" id="floating-typography-bar" style="display: none;">
+      <div class="typo-bar-header">
+      <span class="typo-badge">🔤 文字与字体调节</span>
+      <span class="typo-field-name" id="typo-field-name">选中字段</span>
+      <button class="typo-close-btn" id="btn-close-typo-bar" title="关闭属性栏">✕</button>
+      </div>
+      <div class="typo-bar-body">
+      <div class="typo-row">
+      <label>文本内容</label>
+      <input type="text" id="typo-content-input" class="qz-input qz-input-sm" placeholder="输入文字">
+      </div>
+      <div class="typo-row">
+      <label>字体族</label>
+      <select id="typo-font-family-select" class="qz-input qz-input-sm">
+      <option value="Microsoft YaHei">微软雅黑 (Microsoft YaHei)</option>
+      <option value="SimHei">黑体 (SimHei)</option>
+      <option value="SimSun">宋体 (SimSun)</option>
+      <option value="KaiTi">楷体 (KaiTi)</option>
+      <option value="FangSong">仿宋 (FangSong)</option>
+      <option value="Arial">Arial</option>
+      <option value="Times New Roman">Times New Roman</option>
+      </select>
+      </div>
+      <div class="typo-row typo-grid-2">
+      <div>
+      <label>字号 (px)</label>
+      <div class="stepper-mini">
+      <button id="btn-typo-size-dec">-</button>
+      <input type="number" id="typo-font-size-input" min="16" max="140" step="2" value="52">
+      <button id="btn-typo-size-inc">+</button>
+      </div>
+      </div>
+      <div>
+      <label>粗细 & 颜色</label>
+      <div class="typo-style-toggles">
+      <button class="btn-toggle-bold" id="btn-typo-bold-toggle" title="加粗/常规">B</button>
+      <input type="color" id="typo-color-picker" value="#000000" class="typo-color-box" title="选择字体颜色">
+      </div>
+      </div>
+      </div>
+      </div>
+      </div>
+
+      <!-- 5. Floating Table Lines & Border Style Bar -->
+      <div class="floating-line-style-bar" id="floating-line-style-bar" style="display: none;">
+      <div class="line-bar-header">
+      <span class="line-badge">📐 表格线条与网格调节</span>
+      <button class="typo-close-btn" id="btn-close-line-bar" title="关闭">✕</button>
+      </div>
+      <div class="line-bar-body">
+      <div class="line-row">
+      <label>外边框粗细</label>
+      <select id="line-border-width-select" class="qz-input qz-input-sm">
+      <option value="1">1px (细线)</option>
+      <option value="2">2px (标准)</option>
+      <option value="3">3px (中粗)</option>
+      <option value="4" selected>4px (标准工单加粗)</option>
+      <option value="6">6px (特粗)</option>
+      </select>
+      </div>
+      <div class="line-row">
+      <label>内网格粗细</label>
+      <select id="line-inner-width-select" class="qz-input qz-input-sm">
+      <option value="1">1px (细线)</option>
+      <option value="2" selected>2px (标准网格)</option>
+      <option value="3">3px (加强)</option>
+      </select>
+      </div>
+      <div class="line-row">
+      <label>线条颜色</label>
+      <div class="color-picker-wrap">
+      <input type="color" id="line-color-picker" value="#000000" class="typo-color-box">
+      <span id="line-color-hex">#000000</span>
+      </div>
+      </div>
+      <div class="line-row">
+      <label>左侧表格宽度</label>
+      <div class="slider-wrap">
+      <input type="range" id="line-divider-slider" min="650" max="1100" value="840" step="10">
+      <span id="line-divider-readout">840px</span>
+      </div>
+      </div>
+      </div>
+      </div>
+
+      <!-- 6. Template Editing Action Banner (Shown in Template Edit Mode) -->
+      <div class="tmpl-edit-control-bar" id="tmpl-edit-control-bar" style="display: none;">
+      <div class="tmpl-banner-left">
+      <span class="tmpl-edit-indicator">✏️ 底表模版全面编辑中</span>
+      <span class="tmpl-sub-hint">点击任意文字可更换文本/字体/大小 · 点击表格可调整线条粗细与颜色</span>
+      </div>
+      <div class="tmpl-banner-actions">
+      <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-open-line-bar">📐 调整线条</button>
+      <button class="qz-btn qz-btn-primary qz-btn-sm" id="btn-save-tmpl-header">💾 保存模版</button>
+      <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-reset-tmpl-header">↺ 恢复默认</button>
+      <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-exit-tmpl-header">✕ 完成退出</button>
+      </div>
+      </div>
+
+
       <!-- Scrollable Stage Container -->
       <div class="stage-scroll-wrapper" id="canvas-scroll-container">
         <!-- 3508 x 2480 Stage with STRICT aspect ratio & flex-shrink: 0 -->
+        <div class="stage-scale-container" id="stage-scale-container">
         <div class="sheet-stage" id="sheet-stage">
           <!-- 1. Pure White Vector Background Canvas -->
           <div class="sheet-base-bg"></div>
@@ -258,111 +360,12 @@
             </div>
           </div>
 
-          <!-- 4. Floating Typography & Font Properties Bar -->
-          <div class="floating-typography-bar" id="floating-typography-bar" style="display: none;">
-            <div class="typo-bar-header">
-              <span class="typo-badge">🔤 文字与字体调节</span>
-              <span class="typo-field-name" id="typo-field-name">选中字段</span>
-              <button class="typo-close-btn" id="btn-close-typo-bar" title="关闭属性栏">✕</button>
-            </div>
-            <div class="typo-bar-body">
-              <div class="typo-row">
-                <label>文本内容</label>
-                <input type="text" id="typo-content-input" class="qz-input qz-input-sm" placeholder="输入文字">
-              </div>
-              <div class="typo-row">
-                <label>字体族</label>
-                <select id="typo-font-family-select" class="qz-input qz-input-sm">
-                  <option value="Microsoft YaHei">微软雅黑 (Microsoft YaHei)</option>
-                  <option value="SimHei">黑体 (SimHei)</option>
-                  <option value="SimSun">宋体 (SimSun)</option>
-                  <option value="KaiTi">楷体 (KaiTi)</option>
-                  <option value="FangSong">仿宋 (FangSong)</option>
-                  <option value="Arial">Arial</option>
-                  <option value="Times New Roman">Times New Roman</option>
-                </select>
-              </div>
-              <div class="typo-row typo-grid-2">
-                <div>
-                  <label>字号 (px)</label>
-                  <div class="stepper-mini">
-                    <button id="btn-typo-size-dec">-</button>
-                    <input type="number" id="typo-font-size-input" min="16" max="140" step="2" value="52">
-                    <button id="btn-typo-size-inc">+</button>
-                  </div>
-                </div>
-                <div>
-                  <label>粗细 & 颜色</label>
-                  <div class="typo-style-toggles">
-                    <button class="btn-toggle-bold" id="btn-typo-bold-toggle" title="加粗/常规">B</button>
-                    <input type="color" id="typo-color-picker" value="#000000" class="typo-color-box" title="选择字体颜色">
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 5. Floating Table Lines & Border Style Bar -->
-          <div class="floating-line-style-bar" id="floating-line-style-bar" style="display: none;">
-            <div class="line-bar-header">
-              <span class="line-badge">📐 表格线条与网格调节</span>
-              <button class="typo-close-btn" id="btn-close-line-bar" title="关闭">✕</button>
-            </div>
-            <div class="line-bar-body">
-              <div class="line-row">
-                <label>外边框粗细</label>
-                <select id="line-border-width-select" class="qz-input qz-input-sm">
-                  <option value="1">1px (细线)</option>
-                  <option value="2">2px (标准)</option>
-                  <option value="3">3px (中粗)</option>
-                  <option value="4" selected>4px (标准工单加粗)</option>
-                  <option value="6">6px (特粗)</option>
-                </select>
-              </div>
-              <div class="line-row">
-                <label>内网格粗细</label>
-                <select id="line-inner-width-select" class="qz-input qz-input-sm">
-                  <option value="1">1px (细线)</option>
-                  <option value="2" selected>2px (标准网格)</option>
-                  <option value="3">3px (加强)</option>
-                </select>
-              </div>
-              <div class="line-row">
-                <label>线条颜色</label>
-                <div class="color-picker-wrap">
-                  <input type="color" id="line-color-picker" value="#000000" class="typo-color-box">
-                  <span id="line-color-hex">#000000</span>
-                </div>
-              </div>
-              <div class="line-row">
-                <label>左侧表格宽度</label>
-                <div class="slider-wrap">
-                  <input type="range" id="line-divider-slider" min="650" max="1100" value="840" step="10">
-                  <span id="line-divider-readout">840px</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 6. Template Editing Action Banner (Shown in Template Edit Mode) -->
-          <div class="tmpl-edit-control-bar" id="tmpl-edit-control-bar" style="display: none;">
-            <div class="tmpl-banner-left">
-              <span class="tmpl-edit-indicator">✏️ 底表模版全面编辑中</span>
-              <span class="tmpl-sub-hint">点击任意文字可更换文本/字体/大小 · 点击表格可调整线条粗细与颜色</span>
-            </div>
-            <div class="tmpl-banner-actions">
-              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-open-line-bar">📐 调整线条</button>
-              <button class="qz-btn qz-btn-primary qz-btn-sm" id="btn-save-tmpl-header">💾 保存模版</button>
-              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-reset-tmpl-header">↺ 恢复默认</button>
-              <button class="qz-btn qz-btn-secondary qz-btn-sm" id="btn-exit-tmpl-header">✕ 完成退出</button>
-            </div>
-          </div>
-
           <!-- 7. Dynamic Shoes & Logos Layer -->
           <div id="stage-shoes-layer" style="position: absolute; inset: 0;"></div>
 
           <!-- 8. Smart Alignment Guides & Snapping SVG Layer (拖拽对齐参考线) -->
           <svg id="stage-guides-layer" class="stage-guides-layer" viewBox="0 0 3508 2480"></svg>
+        </div>
         </div>
       </div>
     </main>
