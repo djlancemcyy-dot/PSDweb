@@ -3865,3 +3865,52 @@ body.qz-app {
   font-weight: 600;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
+
+/* ===== 输出目录浏览器（应用内选目录弹窗） ===== */
+.dir-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.dir-browser-path {
+  flex: 1;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: 8px;
+  background: var(--bg-secondary, #f6f7f9);
+  color: var(--text-main, #333);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;           /* 长路径优先显示末尾目录名 */
+  text-align: left;
+}
+.dir-browser-list {
+  max-height: 320px;
+  min-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #e2e5ea);
+  border-radius: 8px;
+}
+.dir-browser-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-main, #333);
+  border-bottom: 1px solid var(--border, #f0f1f4);
+  user-select: none;
+}
+.dir-browser-item:last-child { border-bottom: none; }
+.dir-browser-item:hover { background: var(--bg-hover, #eef2f7); }
+.dir-browser-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-muted, #999);
+  font-size: 13px;
+}

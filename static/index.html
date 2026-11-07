@@ -895,6 +895,27 @@
     </div>
   </div>
 
+  <!-- Modal: 输出目录浏览器（替代系统弹窗，支持局域网客户端） -->
+  <div class="qz-modal" id="modal-dir-browser">
+    <div class="qz-modal-box modal-md" style="max-width: 560px;">
+      <div class="qz-modal-head">
+        <div class="modal-head-title">📂 选择输出目录</div>
+        <button class="modal-close-btn" id="btn-close-dir-browser">✕</button>
+      </div>
+      <div class="qz-modal-body" style="padding: 14px 16px;">
+        <div class="dir-browser-bar">
+          <button class="qz-btn qz-btn-secondary" id="btn-dir-up" style="white-space: nowrap;">⬆ 上级</button>
+          <div class="dir-browser-path" id="dir-browser-path" title="当前路径"></div>
+        </div>
+        <div class="dir-browser-list" id="dir-browser-list"></div>
+      </div>
+      <div class="qz-modal-foot">
+        <button class="qz-btn qz-btn-secondary" id="btn-cancel-dir-browser">取消</button>
+        <button class="qz-btn qz-btn-primary" id="btn-confirm-dir-browser">✅ 选定当前目录</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Hidden Multi-file and Folder Picker for Materials -->
   <input type="file" id="material-multi-file-input" multiple accept="image/*,.pdf" style="display: none;">
   <input type="file" id="material-folder-input" webkitdirectory directory multiple style="display: none;">

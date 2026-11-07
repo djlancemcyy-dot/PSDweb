@@ -3112,7 +3112,7 @@ function updateStageUI() {
       };
       actBar.querySelector(".btn-logo-copy").onclick = (e) => {
         e.stopPropagation();
-        state.clipboard_logo = { ...logo };
+        state.clipboard_logo = structuredClone(logo);
         showToast("📋 已复制标贴！可直接在画板按 Ctrl+V 粘贴到其他鞋款");
       };
       actBar.querySelector(".btn-logo-del").onclick = (e) => {
@@ -4715,22 +4715,61 @@ function setupSettingsAndFolderModal() {
   if (btnCloseCancel) btnCloseCancel.onclick = () => modal.classList.remove("show");
 
   if (btnBrowse && inputPath) {
-    btnBrowse.onclick = async () => {
-      try {
-        btnBrowse.disabled = true;
-        btnBrowse.textContent = "⏳ 选择中...";
-        const res = await fetch("/api/settings/choose-folder", { method: "POST" });
-        const data = await res.json();
-        if (data.status === "success" && data.output_dir) {
-          inputPath.value = data.output_dir;
-          showToast(`📁 已选定输出目录：${data.output_dir}`);
-        }
-      } catch (err) {
-        showToast(`选择目录失败: ${err.message}`);
-      } finally {
-        btnBrowse.disabled = false;
-        btnBrowse.textContent = "📂 浏览选择";
+    // 目录浏览器（应用内）：替代 tkinter 系统弹窗，局域网客户端也可用
+    const dirModal = document.getElementById("modal-dir-browser");
+    const dirList = document.getElementById("dir-browser-list");
+    const dirPathEl = document.getElementById("dir-browser-path");
+    const btnDirUp = document.getElementById("btn-dir-up");
+    let dirCurrent = "";
+    let dirParent = null;
+
+    const renderDirList = (dirs) => {
+      dirList.innerHTML = "";
+      if (!dirs.length) {
+        dirList.innerHTML = `<div class="dir-browser-empty">（此文件夹没有子目录）</div>`;
+        return;
       }
+      dirs.forEach(d => {
+        const row = document.createElement("div");
+        row.className = "dir-browser-item";
+        row.innerHTML = `<span class="dir-ico">📁</span><span class="dir-name"></span>`;
+        row.querySelector(".dir-name").textContent = d.name;
+        row.ondblclick = () => loadDir(d.path);
+        row.onclick = () => loadDir(d.path);
+        dirList.appendChild(row);
+      });
+    };
+
+    const loadDir = async (path) => {
+      try {
+        dirList.innerHTML = `<div class="dir-browser-empty">读取中...</div>`;
+        const url = path ? `/api/settings/browse-dir?path=${encodeURIComponent(path)}` : `/api/settings/browse-dir`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "读取目录失败");
+        dirCurrent = data.current;
+        dirParent = data.parent;
+        dirPathEl.textContent = dirCurrent;
+        btnDirUp.disabled = !dirParent;
+        renderDirList(data.dirs || []);
+      } catch (err) {
+        dirList.innerHTML = `<div class="dir-browser-empty">⚠️ ${err.message}</div>`;
+      }
+    };
+
+    btnDirUp.onclick = () => { if (dirParent) loadDir(dirParent); };
+    document.getElementById("btn-close-dir-browser").onclick = () => dirModal.classList.remove("show");
+    document.getElementById("btn-cancel-dir-browser").onclick = () => dirModal.classList.remove("show");
+    document.getElementById("btn-confirm-dir-browser").onclick = () => {
+      if (!dirCurrent) return;
+      inputPath.value = dirCurrent;
+      dirModal.classList.remove("show");
+      showToast(`📁 已选定输出目录：${dirCurrent}，请点击【保存输出目录】生效`);
+    };
+
+    btnBrowse.onclick = () => {
+      dirModal.classList.add("show");
+      loadDir(inputPath.value || "");
     };
   }
 
@@ -4895,14 +4934,15 @@ function setupClipboardPaste() {
       // M5：仅在有选中标贴或选中鞋时才拦截浏览器默认复制，否则放行
       if (state.selected_logo) {
         e.preventDefault();
-        state.clipboard_logo = { ...state.selected_logo };
+        // M8：深拷贝，防止标贴后续新增嵌套字段时浅拷贝共享引用产生脏数据
+        state.clipboard_logo = structuredClone(state.selected_logo);
         showToast("📋 已复制选中标贴！可直接在画板按 Ctrl+V 粘贴到其他鞋款");
         return;
       }
       const curShoe = task.shoes.find(s => s.id === state.selected_shoe_id);
       if (curShoe && curShoe.logos && curShoe.logos.length > 0) {
         e.preventDefault();
-        state.clipboard_logo = { ...curShoe.logos[curShoe.logos.length - 1] };
+        state.clipboard_logo = structuredClone(curShoe.logos[curShoe.logos.length - 1]);
         showToast(`📋 已复制【${curShoe.color_name || '当前鞋款'}】的标贴！按 Ctrl+V 粘贴`);
       }
       // 无选中标贴/选中鞋：不 preventDefault，放行浏览器默认复制行为
@@ -4943,6 +4983,14 @@ function setupClipboardPaste() {
       // P1-4：每次粘贴递增 0.03 偏移，防止完全叠贴
       const pasteSeq = (state.clipboard_logo._paste_seq = (state.clipboard_logo._paste_seq || 0) + 1);
       const off = 0.03 * pasteSeq;
+      const clipLogoId = state.clipboard_logo.logo_id || state.clipboard_logo.id;
+      // M8：粘贴前校验素材仍在库中，避免悬空 logo_id 静默渲染成默认船标（贴错标）
+      if (clipLogoId && Array.isArray(state.logos_pool) && state.logos_pool.length > 0
+          && !state.logos_pool.some(l => l.id === clipLogoId) && !state.clipboard_logo.file) {
+        showToast("⚠️ 该标贴已从素材库删除，无法粘贴。请重新从素材库置入");
+        state.clipboard_logo = null;
+        return;
+      }
       targetShoe.logos.push({
         logo_id: state.clipboard_logo.logo_id || state.clipboard_logo.id,
         file: state.clipboard_logo.file,

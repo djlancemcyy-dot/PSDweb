@@ -865,8 +865,11 @@ def remove_logo_background(img: Image.Image) -> Image.Image:
                 alpha = out_img.split()[-1]
                 if alpha.getbbox():
                     return out_img
-    except Exception:
-        pass
+    except Exception as e:
+        # 抠图引擎失败不再静默：记录堆栈，便于定位"边缘一团糟"类问题
+        import traceback
+        print(f"[Logo Cutout] AI 抠图失败，降级为四角亮度启发式: {e}")
+        traceback.print_exc()
 
     try:
         import numpy as np
@@ -1804,7 +1807,13 @@ def load_sample_assets():
         pil_raw = Image.open(p).convert("RGB")
         pil_raw.save(raw_path)
         
-        res_img = remove(pil_raw, session=rembg_session)
+        # rembg 不可用时降级到鞋靴抠图引擎，仍不可用则明确报错而非 500
+        if remove is not None and rembg_session is not None:
+            res_img = remove(pil_raw, session=rembg_session)
+        elif shoe_engine is not None:
+            res_img = remove_logo_background(pil_raw)
+        else:
+            raise HTTPException(status_code=503, detail="抠图引擎不可用（rembg 与鞋靴引擎均未就绪）")
         bbox = res_img.getbbox()
         if bbox:
             res_img = res_img.crop(bbox)
@@ -1838,35 +1847,46 @@ def load_sample_assets():
 def calculate_ai_slots(num_shoes: int) -> List[Dict[str, Any]]:
     if num_shoes <= 0:
         return []
-        
+
+    # 硬编码默认值仅作为尺寸/对齐兜底；槽位坐标的唯一事实源是 data/layout_templates.json
+    DEFAULT_SIZES = {
+        1: {"max_w": 1400, "max_h": 800, "align": "center"},
+        2: {"max_w": 1050, "max_h": 600, "align": "left"},
+        3: {"max_w": 1000, "max_h": 530, "align": "left"},
+        4: {"max_w": 1000, "max_h": 530, "align": "left"},
+    }
+    if num_shoes <= 4:
+        # 优先取「四宫格标准」模版，其次任意含该色数槽位的模版
+        try:
+            templates = load_layout_templates()
+            preferred = next((t for t in templates if t.get("id") == "tmpl_grid_4"), None) or \
+                          next((t for t in templates if str(num_shoes) in (t.get("slots_map") or {})), None)
+            slots = (preferred or {}).get("slots_map", {}).get(str(num_shoes))
+            if slots:
+                merged = []
+                for s in slots[:num_shoes]:
+                    entry = dict(DEFAULT_SIZES[num_shoes])
+                    entry.update({k: s[k] for k in ("cx", "cy", "max_w", "max_h", "align") if k in s})
+                    merged.append(entry)
+                if len(merged) == num_shoes:
+                    return merged
+        except Exception as e:
+            print(f"[Layout] 读取排版模版失败，回退内置坐标: {e}")
+        # JSON 缺失时的兜底（与默认模版一致）
+        fallback = {
+            1: [{"cx": 2000, "cy": 1480}],
+            2: [{"cx": 1340, "cy": 1080}, {"cx": 1340, "cy": 1840}],
+            3: [{"cx": 1340, "cy": 1060}, {"cx": 2550, "cy": 1060}, {"cx": 1340, "cy": 1830}],
+            4: [{"cx": 1340, "cy": 1060}, {"cx": 2550, "cy": 1060}, {"cx": 1340, "cy": 1830}, {"cx": 2550, "cy": 1830}],
+        }[num_shoes]
+        return [dict(DEFAULT_SIZES[num_shoes], **s) for s in fallback]
+
     area_x1 = 860
     area_x2 = 3360
     area_y1 = 760
     area_y2 = 2360
     total_w = area_x2 - area_x1
     total_h = area_y2 - area_y1
-
-    if num_shoes == 1:
-        return [{ "cx": 2000, "cy": 1480, "max_w": 1400, "max_h": 800, "align": "center" }]
-    elif num_shoes == 2:
-        return [
-            { "cx": 1340, "cy": 1080, "max_w": 1050, "max_h": 600, "align": "left" },
-            { "cx": 1340, "cy": 1840, "max_w": 1050, "max_h": 600, "align": "left" }
-        ]
-    elif num_shoes == 3:
-        return [
-            { "cx": 1340, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 2550, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 1340, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" }
-        ]
-    elif num_shoes == 4:
-        return [
-            { "cx": 1340, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 2550, "cy": 1060, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 1340, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" },
-            { "cx": 2550, "cy": 1830, "max_w": 1000, "max_h": 530, "align": "left" }
-        ]
-        
     if num_shoes <= 6:
         rows, cols = 2, 3
     elif num_shoes <= 8:
@@ -2449,17 +2469,71 @@ def ask_directory_dialog(initial_dir=None):
         print(f"[Settings] ask_directory error: {e}")
         return ""
 
+# tkinter 非线程安全：对话框统一投递到唯一的专属守护线程执行，避免在临时线程池里反复创建 Tk 实例
+import queue as _queue
+_tk_dialog_lock = threading.Lock()
+_tk_dialog_queue = _queue.Queue()
+
+def _tk_dialog_worker():
+    """专属 tk 线程：从队列取任务执行并把结果放回，进程生命周期内常驻"""
+    while True:
+        initial_dir, result_box = _tk_dialog_queue.get()
+        try:
+            result_box.append(ask_directory_dialog(initial_dir))
+        except Exception as e:
+            print(f"[Settings] tk dialog worker error: {e}")
+            result_box.append("")
+
+def _run_dialog_on_tk_thread(initial_dir, timeout=180):
+    """同步等待专属线程弹窗结果；超时返回空串，避免线程悬挂"""
+    result_box = []
+    _tk_dialog_queue.put((initial_dir, result_box))
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if result_box:
+            return result_box[0]
+        time.sleep(0.3)
+    print("[Settings] 目录选择对话框超时(180s)，已放弃等待")
+    return ""
+
+@app.get("/api/settings/browse-dir")
+def browse_directory(path: Optional[str] = None):
+    """目录浏览 API：替代原生弹窗，前端树形选择器使用（仅允许主目录之下）"""
+    base = Path(path).resolve() if path else Path.home().resolve()
+    home = Path.home().resolve()
+    try:
+        if not base.is_relative_to(home):
+            raise HTTPException(status_code=400, detail="仅允许浏览用户主目录之下的文件夹")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="仅允许浏览用户主目录之下的文件夹")
+    if not base.exists() or not base.is_dir():
+        raise HTTPException(status_code=404, detail="目录不存在")
+    try:
+        dirs = [{"name": p.name, "path": str(p)} for p in sorted(base.iterdir(), key=lambda x: x.name.lower()) if p.is_dir()]
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="无权限访问该目录")
+    parent = str(base.parent) if base != base.parent else None
+    return {"status": "success", "current": str(base), "parent": parent, "dirs": dirs}
+
+import asyncio as _asyncio
+_choose_folder_async_lock = _asyncio.Lock()  # 串行化弹窗请求（3.10+ 懒绑定事件循环，可模块级创建）
+
+# 启动专属 tk 对话框守护线程
+threading.Thread(target=_tk_dialog_worker, daemon=True).start()
+
 @app.post("/api/settings/choose-folder")
 async def choose_output_folder_dialog():
     global OUTPUT_DIR
     import asyncio
-    import concurrent.futures
     loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        folder = await loop.run_in_executor(pool, ask_directory_dialog, str(OUTPUT_DIR))
+    # 串行化 + 专属 tk 线程：防止并发弹窗与 Tk 线程安全问题
+    async with _choose_folder_async_lock:
+        folder = await loop.run_in_executor(None, _run_dialog_on_tk_thread, str(OUTPUT_DIR))
     if folder:
         p = Path(folder)
         try:
+            if not p.resolve().is_relative_to(Path.home().resolve()):
+                return {"status": "error", "detail": "输出目录必须位于用户主目录之下", "output_dir": str(OUTPUT_DIR.resolve())}
             p.mkdir(parents=True, exist_ok=True)
             OUTPUT_DIR = p
             return {"status": "success", "output_dir": str(OUTPUT_DIR.resolve())}
