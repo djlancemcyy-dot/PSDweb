@@ -7,6 +7,7 @@ shoe_cutout_engine.py — 小帆船专用工业级离线鞋样抠图引擎
 
 import os
 import sys
+import gc
 import time
 import json
 from pathlib import Path
@@ -88,10 +89,13 @@ class ShoeCutoutEngine:
         return None
 
     def _save_model_id(self, model_id: str):
+        # 原子写：先写 .tmp 再 os.replace，避免崩溃时留下半个 JSON
         try:
             SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            tmp_path = SETTINGS_FILE.with_suffix(SETTINGS_FILE.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump({"active_model_id": model_id}, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, SETTINGS_FILE)
         except Exception as e:
             print(f"[ShoeCutoutEngine] 保存模型设置失败: {e}")
 
@@ -119,8 +123,17 @@ class ShoeCutoutEngine:
 
         new_session = ort.InferenceSession(str(target_path), so, providers=["CPUExecutionProvider"])
         inp = new_session.get_inputs()[0]
-        
+
+        # 显式释放旧 InferenceSession（否则 ONNX 内存常驻，多次切换后内存翻倍），
+        # 引擎只持有单个活动 session，天然满足“最多驻留 2 个模型（新旧切换瞬间）”
+        old_session = self.session
         self.session = new_session
+        if old_session is not None:
+            try:
+                del old_session
+                gc.collect()
+            except Exception:
+                pass
         self.input_name = inp.name
         self.input_h = inp.shape[2] if (len(inp.shape) > 2 and isinstance(inp.shape[2], int)) else 1024
         self.input_w = inp.shape[3] if (len(inp.shape) > 3 and isinstance(inp.shape[3], int)) else 1024

@@ -2613,9 +2613,8 @@ body.qz-app {
    v2.4.2 Comprehensive 18-Item Industrial Ergonomic Upgrade
    ========================================================================== */
 
-:root {
-  --stage-scale: 0.25;
-}
+/* P1-5：已删除静态 --stage-scale 默认值，--stage-scale 仅由 JS setupStageScale 写入 documentElement，
+   各 calc() 中保留 var(--stage-scale, 0.25) 的 fallback */
 
 /* 1. Canvas Interactive Handles Inverse-Scale Physical Compensation */
 .stage-shoe-toolbar,
@@ -2736,6 +2735,10 @@ body.qz-app {
 #stage-scale-container {
   transition: transform 0.05s ease-out;
   transform-origin: 0 0;
+}
+/* P1-5：抓手平移期间禁用 transform 过渡，避免拖影与事件脱节 */
+#stage-scale-container.panning {
+  transition: none !important;
 }
 
 /* 5. Quick Guide Popover */

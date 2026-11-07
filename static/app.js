@@ -39,7 +39,8 @@ const state = {
   active_layout_template_id: "tmpl_grid_4",
   pan_x: 0,
   pan_y: 0,
-  is_panning: false
+  is_panning: false,
+  dirty: false               // M6 防丢稿：有未同步到服务端的改动时为 true
 };
 
 const STAGE_W = 3508;
@@ -213,11 +214,13 @@ function setupZoomControls() {
   const btn100 = document.getElementById("btn-zoom-100");
   const btnFit = document.getElementById("btn-zoom-fit");
 
+  // P1-5：缩放后统一复位平移，与 btn-fit 的 resetPan 逻辑一致
   if (btnIn) {
     btnIn.onclick = () => {
       state.zoom_mode = "custom";
       state.custom_zoom_ratio = Math.min(3.0, (state.stage_scale || 1.0) * 1.2);
       setupStageScale();
+      resetCanvasPan();
       updateStageUI();
     };
   }
@@ -226,6 +229,7 @@ function setupZoomControls() {
       state.zoom_mode = "custom";
       state.custom_zoom_ratio = Math.max(0.15, (state.stage_scale || 1.0) / 1.2);
       setupStageScale();
+      resetCanvasPan();
       updateStageUI();
     };
   }
@@ -234,6 +238,7 @@ function setupZoomControls() {
       state.zoom_mode = "100";
       state.custom_zoom_ratio = 1.0;
       setupStageScale();
+      resetCanvasPan();
       updateStageUI();
     };
   }
@@ -357,6 +362,10 @@ function renderGroupSelect() {
 }
 
 function switchGroup(groupId) {
+  // P1-4：切换批次标签时统一清空选中与剪贴板状态
+  state.selected_logo = null;
+  state.selected_canvas_logo_id = null;
+  state.clipboard_logo = null;
   state.active_group_id = groupId;
   const group = getActiveGroup();
   if (!group.tasks || group.tasks.length === 0) {
@@ -505,18 +514,66 @@ async function handleConfirmDeleteGroup() {
 
 let syncTimer = null;
 function syncGroupsToServer() {
+  state.dirty = true; // M6：任何触发同步的 mutation 先标记为脏
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     try {
-      await fetch("/api/groups/save-all", {
+      const res = await fetch("/api/groups/save-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(state.groups)
       });
+      if (res && res.ok) state.dirty = false; // 同步成功才清除脏标记
     } catch (e) {
       console.warn("Auto-sync groups error:", e);
     }
   }, 1000);
+}
+
+// M6 防丢稿：关闭/刷新页面前拦截提示，pagehide 时用 sendBeacon 做最后一次兜底保存
+window.addEventListener("beforeunload", (e) => {
+  if (state.dirty) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+window.addEventListener("pagehide", () => {
+  if (state.dirty && navigator.sendBeacon) {
+    try {
+      const blob = new Blob([JSON.stringify(state.groups)], { type: "application/json" });
+      navigator.sendBeacon("/api/groups/save-all", blob);
+      state.dirty = false;
+    } catch (err) {
+      console.warn("pagehide sendBeacon flush 失败:", err);
+    }
+  }
+});
+
+// M7 输入合帧：requestAnimationFrame 合帧渲染，防重入，避免高频 input 事件触发整树重建
+let renderFrameScheduled = false;
+function scheduleRender() {
+  if (renderFrameScheduled) return;
+  renderFrameScheduled = true;
+  requestAnimationFrame(() => {
+    renderFrameScheduled = false;
+    updateStageUI();
+  });
+}
+
+// 键盘守卫：判断当前焦点是否在可编辑控件或存在打开中的弹窗
+function isEditableContext() {
+  const el = document.activeElement;
+  if (el && el.closest && el.closest("input,textarea,select,[contenteditable]")) return true;
+  if (document.querySelector(".modal.show")) return true;
+  return false;
+}
+
+// 复位画布平移（与 btn-fit 逻辑一致），供缩放按钮统一调用
+function resetCanvasPan() {
+  state.pan_x = 0;
+  state.pan_y = 0;
+  const sc = document.getElementById("stage-scale-container");
+  if (sc) sc.style.transform = "translate(0px, 0px)";
 }
 
 // --- Tasks Management (Inside Active Group, Rendered on Left Sidebar) ---
@@ -553,6 +610,10 @@ function createNewTask() {
 }
 
 function switchTask(taskId) {
+  // P1-4：切换任务时统一清空选中与剪贴板状态，避免跨任务误粘贴
+  state.selected_logo = null;
+  state.selected_canvas_logo_id = null;
+  state.clipboard_logo = null;
   state.active_task_id = taskId;
   const task = getActiveTask();
   if (task) {
@@ -1651,17 +1712,18 @@ function setupEventListeners() {
     renderTasksNav();
     syncGroupsToServer();
   });
+  // M7：输入事件统一走 rAF 合帧渲染，避免每个按键整树重建
   document.getElementById("input-material-code").addEventListener("input", (e) => {
-    const t = task(); if (t) { t.material_code = e.target.value; updateStageUI(); syncGroupsToServer(); }
+    const t = task(); if (t) { t.material_code = e.target.value; scheduleRender(); syncGroupsToServer(); }
   });
   document.getElementById("input-size").addEventListener("input", (e) => {
-    const t = task(); if (t) { t.size = e.target.value; updateStageUI(); syncGroupsToServer(); }
+    const t = task(); if (t) { t.size = e.target.value; scheduleRender(); syncGroupsToServer(); }
   });
   document.getElementById("input-fabrics").addEventListener("input", (e) => {
-    const t = task(); if (t) { t.fabrics = e.target.value; updateStageUI(); syncGroupsToServer(); }
+    const t = task(); if (t) { t.fabrics = e.target.value; scheduleRender(); syncGroupsToServer(); }
   });
   document.getElementById("input-soles").addEventListener("input", (e) => {
-    const t = task(); if (t) { t.soles = e.target.value; updateStageUI(); syncGroupsToServer(); }
+    const t = task(); if (t) { t.soles = e.target.value; scheduleRender(); syncGroupsToServer(); }
   });
 
   // Action Buttons
@@ -2241,7 +2303,7 @@ function initTypographyInspector() {
         const formInp = document.getElementById(`input-${targetKey}`);
         if (formInp) formInp.value = val;
       }
-      renderTableTexts();
+      scheduleRender(); // M7：rAF 合帧替代逐键整树重建
     };
   }
 
@@ -2290,7 +2352,7 @@ function initTypographyInspector() {
       const pfx = getActiveFontPrefix();
       if (!state.template_config.fonts) state.template_config.fonts = {};
       state.template_config.fonts[`${pfx}_color`] = e.target.value;
-      renderTableTexts();
+      scheduleRender(); // M7：rAF 合帧替代高频整树重建
     };
   }
 }
@@ -3123,88 +3185,132 @@ function updateStageUI() {
 // --- Industrial Diagonal Resize Drag Handlers ---
 
 function makeShoeResizable(handleEl, shoe, slot) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与当前元素样式
   let isResizing = false;
   let startX = 0;
   let startScale = shoe.scale_multiplier ?? 1.0;
 
-  handleEl.addEventListener("mousedown", (e) => {
+  handleEl.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
     e.preventDefault();
     isResizing = true;
     startX = e.clientX;
     startScale = shoe.scale_multiplier ?? 1.0;
+    try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       if (!isResizing) return;
       const curScale = state.stage_scale || 1.0;
       const dx = (ev.clientX - startX) / curScale;
       const delta = dx / 350;
       shoe.scale_multiplier = Math.max(0.35, Math.min(3.0, startScale + delta));
-      updateStageUI();
+      // 拖动期间只更新当前鞋元素自身的几何样式，禁止整树 updateStageUI
+      const wrapper = handleEl.parentElement;
+      if (wrapper && slot) {
+        const baseFitScale = Math.min(slot.max_w / shoe.width, slot.max_h / shoe.height);
+        const finalShoeScale = baseFitScale * shoe.scale_multiplier;
+        const shoeW = Math.round(shoe.width * finalShoeScale);
+        const shoeH = Math.round(shoe.height * finalShoeScale);
+        wrapper.style.width = `${toStagePx(shoeW)}px`;
+        wrapper.style.height = `${toStagePx(shoeH)}px`;
+        wrapper.style.left = `${toStagePx(Math.round(slot.cx - shoeW / 2 + (shoe.offset_x ?? 0)))}px`;
+        wrapper.style.top = `${toStagePx(Math.round(slot.cy - shoeH / 2 + (shoe.offset_y ?? 0)))}px`;
+      }
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isResizing) return;
       isResizing = false;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+      handleEl.removeEventListener("pointermove", onPointerMove);
+      handleEl.removeEventListener("pointerup", onPointerEnd);
+      handleEl.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      updateStageUI(); // 收尾时统一重建一次
       syncGroupsToServer();
     };
+    // 窗口失焦时强制执行收尾，防止状态卡死
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    handleEl.addEventListener("pointermove", onPointerMove);
+    handleEl.addEventListener("pointerup", onPointerEnd);
+    handleEl.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
 function makeLogoResizable(handleEl, logo, shoeW, shoeH) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与当前标贴元素样式
   let isResizing = false;
   let startX = 0;
   let startScale = logo.scale ?? 1.0;
 
-  handleEl.addEventListener("mousedown", (e) => {
+  handleEl.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
     e.preventDefault();
     isResizing = true;
     startX = e.clientX;
     startScale = logo.scale ?? 1.0;
+    try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const onMouseMove = (ev) => {
+    // 记录拖拽起始时标贴元素的渲染宽度系数，move 中直接换算新宽度，避免整树重建
+    const logoEl = handleEl.parentElement;
+    const wFactor = logoEl && startScale > 0 ? (logoEl.offsetWidth / (180 * startScale)) : 1;
+
+    const onPointerMove = (ev) => {
       if (!isResizing) return;
       const curScale = state.stage_scale || 1.0;
       const dx = (ev.clientX - startX) / curScale;
       const delta = dx / 100;
       logo.scale = Math.max(0.2, Math.min(3.5, startScale + delta));
-      updateStageUI();
+      if (logoEl) {
+        const newW = Math.round(180 * logo.scale * wFactor);
+        logoEl.style.width = `${toStagePx(newW)}px`;
+        logoEl.style.height = `${toStagePx(Math.round(newW * (140 / 180)))}px`;
+      }
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isResizing) return;
       isResizing = false;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+      handleEl.removeEventListener("pointermove", onPointerMove);
+      handleEl.removeEventListener("pointerup", onPointerEnd);
+      handleEl.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      updateStageUI(); // 收尾时统一重建一次
       syncGroupsToServer();
     };
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    handleEl.addEventListener("pointermove", onPointerMove);
+    handleEl.addEventListener("pointerup", onPointerEnd);
+    handleEl.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
 function makeCanvasLogoDraggable(el, cl) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与元素自身样式
   let isDragging = false;
   let startX = 0, startY = 0;
   let initX = cl.x, initY = cl.y;
 
-  el.addEventListener("mousedown", (e) => {
+  el.addEventListener("pointerdown", (e) => {
     if (e.target.tagName === "BUTTON" || e.target.classList.contains("stage-resize-handle")) return;
     e.stopPropagation();
     e.preventDefault();
     isDragging = true;
+    let moved = false;
     startX = e.clientX;
     startY = e.clientY;
     initX = cl.x;
     initY = cl.y;
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       if (!isDragging) return;
+      if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
       const s = state.stage_scale || 1.0;
       cl.x = Math.round(initX + (ev.clientX - startX) / s);
       cl.y = Math.round(initY + (ev.clientY - startY) / s);
@@ -3212,25 +3318,35 @@ function makeCanvasLogoDraggable(el, cl) {
       el.style.top = `${toStagePx(cl.y)}px`;
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isDragging) return;
       isDragging = false;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try { el.releasePointerCapture(ev.pointerId); } catch (_) {}
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onPointerEnd);
+      el.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      // pointerdown 已 preventDefault（抑制了原生 click），未发生位移时手动补发点击以保持选中交互
+      if (!moved) { el.click(); return; }
       syncGroupsToServer();
     };
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerEnd);
+    el.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
 function makeCanvasLogoResizable(handleEl, cl) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与元素自身宽高
   let isResizing = false;
   let startX = 0;
   let startW = cl.width;
   let startH = cl.height;
 
-  handleEl.addEventListener("mousedown", (e) => {
+  handleEl.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
     e.preventDefault();
     isResizing = true;
@@ -3238,50 +3354,68 @@ function makeCanvasLogoResizable(handleEl, cl) {
     startW = cl.width;
     startH = cl.height;
     const aspect = startW / (startH || 1);
+    const clEl = handleEl.parentElement;
+    try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       if (!isResizing) return;
       const s = state.stage_scale || 1.0;
       const dx = (ev.clientX - startX) / s;
       cl.width = Math.max(60, Math.round(startW + dx));
       cl.height = Math.round(cl.width / aspect);
-      updateStageUI();
+      // 拖动期间只更新当前元素自身宽高，禁止整树 updateStageUI
+      if (clEl) {
+        clEl.style.width = `${toStagePx(cl.width)}px`;
+        clEl.style.height = `${toStagePx(cl.height)}px`;
+      }
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isResizing) return;
       isResizing = false;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try { handleEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+      handleEl.removeEventListener("pointermove", onPointerMove);
+      handleEl.removeEventListener("pointerup", onPointerEnd);
+      handleEl.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      updateStageUI(); // 收尾时统一重建一次
       syncGroupsToServer();
     };
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    handleEl.addEventListener("pointermove", onPointerMove);
+    handleEl.addEventListener("pointerup", onPointerEnd);
+    handleEl.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
 
 function makeShoeDraggable(shoeEl, shoe, slotIndex, slots) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与元素自身样式
   let isDragging = false;
   let startX = 0, startY = 0;
   let initX = shoe.offset_x ?? 0.0;
   let initY = shoe.offset_y ?? 0.0;
   const guidesLayer = document.getElementById("stage-guides-layer");
 
-  shoeEl.addEventListener("mousedown", (e) => {
-    if (e.target.closest(".stage-logo-element") || e.target.closest(".stage-shoe-toolbar")) return;
+  shoeEl.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".stage-logo-element") || e.target.closest(".stage-shoe-toolbar") || e.target.closest(".stage-resize-handle")) return;
     e.preventDefault();
     isDragging = true;
+    let moved = false;
     startX = e.clientX;
     startY = e.clientY;
     initX = shoe.offset_x ?? 0.0;
     initY = shoe.offset_y ?? 0.0;
+    try { shoeEl.setPointerCapture(e.pointerId); } catch (_) {}
 
     const task = getActiveTask();
     const curSlot = slots[slotIndex];
 
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       if (!isDragging) return;
+      if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
       const dx = (ev.clientX - startX) / state.stage_scale;
       const dy = (ev.clientY - startY) / state.stage_scale;
       
@@ -3390,9 +3524,11 @@ function makeShoeDraggable(shoeEl, shoe, slotIndex, slots) {
 
       shoe.offset_x = targetOffsetX;
       shoe.offset_y = targetOffsetY;
-      updateStageUI();
+      // 拖动期间禁止整树 updateStageUI：只更新当前鞋元素自身的位置样式
+      shoeEl.style.left = `${toStagePx(Math.round(curSlot.cx - shoeW / 2 + targetOffsetX))}px`;
+      shoeEl.style.top = `${toStagePx(Math.round(curSlot.cy - shoeH / 2 + targetOffsetY))}px`;
 
-      // Render guides into SVG
+      // 磁吸提示线只更新 guides 图层自身，不重建其他 DOM
       if (guidesLayer) {
         if (svgLines.length === 0) {
           guidesLayer.innerHTML = "";
@@ -3406,36 +3542,51 @@ function makeShoeDraggable(shoeEl, shoe, slotIndex, slots) {
       }
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isDragging) return;
       isDragging = false;
       if (guidesLayer) guidesLayer.innerHTML = "";
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try { shoeEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+      shoeEl.removeEventListener("pointermove", onPointerMove);
+      shoeEl.removeEventListener("pointerup", onPointerEnd);
+      shoeEl.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      // pointerdown 已 preventDefault（抑制了原生 click），未发生位移时手动补发点击以保持选中交互
+      if (!moved) { shoeEl.click(); return; }
+      updateStageUI(); // 收尾时统一重建一次
       syncGroupsToServer();
     };
+    // 窗口失焦时强制执行收尾，防止拖拽状态卡死
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    shoeEl.addEventListener("pointermove", onPointerMove);
+    shoeEl.addEventListener("pointerup", onPointerEnd);
+    shoeEl.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
 function makeLogoDraggable(logoEl, logo, shoeW, shoeH) {
+  // P0-4：Pointer Events + setPointerCapture，拖动期间只更新数据与元素自身样式
   let isDragging = false;
   let startX = 0, startY = 0;
   let startRelX = logo.rel_x, startRelY = logo.rel_y;
 
-  logoEl.addEventListener("mousedown", (e) => {
-    if (e.target.tagName === "BUTTON") return;
+  logoEl.addEventListener("pointerdown", (e) => {
+    if (e.target.tagName === "BUTTON" || e.target.classList.contains("logo-resize-handle")) return;
     e.stopPropagation();
     e.preventDefault();
     isDragging = true;
+    let moved = false;
     startX = e.clientX;
     startY = e.clientY;
     startRelX = logo.rel_x;
     startRelY = logo.rel_y;
+    try { logoEl.setPointerCapture(e.pointerId); } catch (_) {}
 
-    const onMouseMove = (ev) => {
+    const onPointerMove = (ev) => {
       if (!isDragging) return;
+      if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
       const curScale = state.stage_scale || 1.0;
       const dx = (ev.clientX - startX) / curScale;
       const dy = (ev.clientY - startY) / curScale;
@@ -3446,16 +3597,25 @@ function makeLogoDraggable(logoEl, logo, shoeW, shoeH) {
       logoEl.style.top = `${Math.round(logo.rel_y * 100)}%`;
     };
 
-    const onMouseUp = () => {
+    const onPointerEnd = (ev) => {
+      if (!isDragging) return;
       isDragging = false;
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-      updateStageUI();
+      try { logoEl.releasePointerCapture(ev.pointerId); } catch (_) {}
+      logoEl.removeEventListener("pointermove", onPointerMove);
+      logoEl.removeEventListener("pointerup", onPointerEnd);
+      logoEl.removeEventListener("pointercancel", onPointerEnd);
+      window.removeEventListener("blur", onWinBlur);
+      // pointerdown 已 preventDefault（抑制了原生 click），未发生位移时手动补发点击以保持选中交互
+      if (!moved) { logoEl.click(); return; }
+      updateStageUI(); // 收尾时统一重建一次
       syncGroupsToServer();
     };
+    const onWinBlur = () => onPointerEnd({ pointerId: e.pointerId });
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    logoEl.addEventListener("pointermove", onPointerMove);
+    logoEl.addEventListener("pointerup", onPointerEnd);
+    logoEl.addEventListener("pointercancel", onPointerEnd);
+    window.addEventListener("blur", onWinBlur);
   });
 }
 
@@ -3507,7 +3667,7 @@ function renderShoeListCards() {
     input.onclick = (e) => e.stopPropagation();
     input.oninput = (e) => {
       shoe.color_name = e.target.value;
-      updateStageUI();
+      scheduleRender(); // M7：rAF 合帧渲染
       syncGroupsToServer();
     };
 
@@ -3609,6 +3769,11 @@ async function renderAndExportCurrent(isSilent = false) {
         document.body.appendChild(aJpg);
         aJpg.click();
         document.body.removeChild(aJpg);
+
+        // 后端若声明文字不可编辑（栅格化位图），顺带提示
+        if (data.editable_text === false) {
+          showToast("ℹ️ 提示：导出 PSD 中的文字为栅格化位图，不可直接编辑");
+        }
 
         // 如果生成了可编辑分层 PSD，也自动触发下载
         if (data.has_psd && data.psd_download_url) {
@@ -3761,14 +3926,34 @@ function setupSyncLogosToAllColors() {
     }
 
     let syncedCount = 0;
+    let sameIdCount = 0;   // 按同款 logo_id 对齐的数量
+    let fallbackCount = 0; // 按同类型槽位/首款兜底对齐的数量
     task.shoes.slice(1).forEach(shoe => {
       if (!shoe.logos || shoe.logos.length === 0) {
         // 情况 1：其他颜色没有贴标 -> 自动完整同步图片、位置、大小与旋转
         shoe.logos = JSON.parse(JSON.stringify(firstLogos));
+        sameIdCount += firstLogos.length;
       } else {
         // 情况 2：其他颜色已有不同贴标 -> 保留其自身图片，仅同步对齐首款的位置、大小与旋转
-        shoe.logos.forEach((logo, lIdx) => {
-          const refLogo = firstLogos[lIdx] || firstLogos[0];
+        shoe.logos.forEach((logo) => {
+          // P1-4：优先按 logo_id 同款匹配
+          let refLogo = firstLogos.find(f => f.logo_id === logo.logo_id);
+          if (refLogo) {
+            sameIdCount++;
+          } else {
+            // 回退 1：按同类型槽位（default_type）匹配
+            const logoDef = state.logos_pool.find(l => l.id === logo.logo_id);
+            const logoType = logoDef ? logoDef.default_type : null;
+            if (logoType) {
+              refLogo = firstLogos.find(f => {
+                const fDef = state.logos_pool.find(l => l.id === f.logo_id);
+                return fDef && fDef.default_type === logoType;
+              });
+            }
+            // 回退 2：兜底使用首款第一枚标贴
+            if (!refLogo) refLogo = firstLogos[0];
+            fallbackCount++;
+          }
           if (refLogo) {
             logo.rel_x = refLogo.rel_x;
             logo.rel_y = refLogo.rel_y;
@@ -3782,7 +3967,7 @@ function setupSyncLogosToAllColors() {
 
     updateStageUI();
     syncGroupsToServer();
-    showToast(`⚡ 成功将首款【${firstShoe.color_name || '1号色'}】标贴同步对齐至全部 ${syncedCount} 款配色！`);
+    showToast(`⚡ 已同步至 ${syncedCount} 款配色：${sameIdCount} 枚按同款对齐 / ${fallbackCount} 枚按槽位回退`);
   };
 }
 
@@ -3823,12 +4008,28 @@ function setupCanvasPanAndZoom() {
     scaleContainer.style.transform = `translate(${state.pan_x}px, ${state.pan_y}px)`;
   };
 
+  // P1-5：平移期间禁用容器 transform 过渡，避免拖影
+  const setPanningClass = (on) => {
+    scaleContainer.classList.toggle("panning", on);
+  };
+  // 平移收尾统一入口（mouseup / blur / Space 抬起均调用）
+  const finishPan = () => {
+    if (isPanning) {
+      isPanning = false;
+      targetContainer.style.cursor = "";
+      targetContainer.classList.remove("panning");
+      setPanningClass(false);
+    }
+  };
+
+  // M5：键盘守卫扩展为 closest('input,textarea,select,[contenteditable]') 或存在 .modal.show
   window.addEventListener("keydown", (e) => {
-    if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+    if (e.code === "Space" && !isEditableContext()) {
+      e.preventDefault(); // 阻止空格触发页面滚动/按钮激活
       spacePressed = true;
       targetContainer.classList.add("can-pan");
     }
-    if (e.key.toLowerCase() === "h" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+    if (e.key.toLowerCase() === "h" && !isEditableContext()) {
       state.hand_tool_mode = !state.hand_tool_mode;
       updateHandToolUI();
       showToast(state.hand_tool_mode ? "✋ 抓手拖动模式" : "↖️ 选择编辑模式");
@@ -3839,6 +4040,7 @@ function setupCanvasPanAndZoom() {
     if (e.code === "Space") {
       spacePressed = false;
       targetContainer.classList.remove("can-pan");
+      finishPan(); // M5：Space 抬起时若仍在平移则强制收尾
     }
   });
 
@@ -3852,6 +4054,7 @@ function setupCanvasPanAndZoom() {
       startPanY = state.pan_y;
       targetContainer.style.cursor = "grabbing";
       targetContainer.classList.add("panning");
+      setPanningClass(true);
       e.preventDefault();
       return;
     }
@@ -3884,6 +4087,7 @@ function setupCanvasPanAndZoom() {
       startPanY = state.pan_y;
       targetContainer.style.cursor = "grabbing";
       targetContainer.classList.add("panning");
+      setPanningClass(true);
       e.preventDefault();
       return;
     }
@@ -3896,13 +4100,9 @@ function setupCanvasPanAndZoom() {
     applyPan();
   });
 
-  window.addEventListener("mouseup", () => {
-    if (isPanning) {
-      isPanning = false;
-      targetContainer.style.cursor = "";
-      targetContainer.classList.remove("panning");
-    }
-  });
+  window.addEventListener("mouseup", finishPan);
+  // 窗口失焦时强制平移收尾，并移除过渡禁用类
+  window.addEventListener("blur", finishPan);
 
   const btnFit = document.getElementById("btn-zoom-fit");
   if (btnFit) {
@@ -4629,20 +4829,24 @@ function setupClipboardPaste() {
   // 1. Keyboard shortcuts: Ctrl+C copies selected logo or selected shoe logo
   window.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
-      if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+      if (isEditableContext()) return;
       const task = getActiveTask();
       if (!task) return;
 
+      // M5：仅在有选中标贴或选中鞋时才拦截浏览器默认复制，否则放行
       if (state.selected_logo) {
+        e.preventDefault();
         state.clipboard_logo = { ...state.selected_logo };
         showToast("📋 已复制选中标贴！可直接在画板按 Ctrl+V 粘贴到其他鞋款");
         return;
       }
       const curShoe = task.shoes.find(s => s.id === state.selected_shoe_id);
       if (curShoe && curShoe.logos && curShoe.logos.length > 0) {
+        e.preventDefault();
         state.clipboard_logo = { ...curShoe.logos[curShoe.logos.length - 1] };
         showToast(`📋 已复制【${curShoe.color_name || '当前鞋款'}】的标贴！按 Ctrl+V 粘贴`);
       }
+      // 无选中标贴/选中鞋：不 preventDefault，放行浏览器默认复制行为
     }
   });
 
@@ -4668,24 +4872,30 @@ function setupClipboardPaste() {
       }
     }
 
-    // Case A: If user has a copied logo in state.clipboard_logo and target shoe is selected
-    if (state.clipboard_logo && (!imageFile || state.selected_shoe_id)) {
+    // Case A: 内部复制的标贴粘贴（P1-4：外部图片 imageFile 优先于内部 clipboard_logo）
+    if (state.clipboard_logo && !imageFile) {
       e.preventDefault();
-      const targetShoe = task.shoes.find(s => s.id === state.selected_shoe_id) || task.shoes[0];
-      if (targetShoe) {
-        targetShoe.logos.push({
-          logo_id: state.clipboard_logo.logo_id || state.clipboard_logo.id,
-          file: state.clipboard_logo.file,
-          rel_x: state.clipboard_logo.rel_x ?? 0.24,
-          rel_y: state.clipboard_logo.rel_y ?? 0.45,
-          scale: state.clipboard_logo.scale ?? 1.0,
-          rotation: state.clipboard_logo.rotation ?? 0
-        });
-        updateStageUI();
-        syncGroupsToServer();
-        showToast(`📋 已将标贴粘贴至【${targetShoe.color_name || '当前鞋款'}】！`);
+      // P1-4：未选中鞋款时不再兜底 task.shoes[0]，直接提示并中止
+      const targetShoe = task.shoes.find(s => s.id === state.selected_shoe_id);
+      if (!targetShoe) {
+        showToast("⚠️ 请先点击选中要粘贴到的鞋款");
         return;
       }
+      // P1-4：每次粘贴递增 0.03 偏移，防止完全叠贴
+      const pasteSeq = (state.clipboard_logo._paste_seq = (state.clipboard_logo._paste_seq || 0) + 1);
+      const off = 0.03 * pasteSeq;
+      targetShoe.logos.push({
+        logo_id: state.clipboard_logo.logo_id || state.clipboard_logo.id,
+        file: state.clipboard_logo.file,
+        rel_x: Math.min(0.9, (state.clipboard_logo.rel_x ?? 0.24) + off),
+        rel_y: Math.min(0.9, (state.clipboard_logo.rel_y ?? 0.45) + off),
+        scale: state.clipboard_logo.scale ?? 1.0,
+        rotation: state.clipboard_logo.rotation ?? 0
+      });
+      updateStageUI();
+      syncGroupsToServer();
+      showToast(`📋 已将标贴粘贴至【${targetShoe.color_name || '当前鞋款'}】！`);
+      return;
     }
 
     // Case B: Pasting image file from OS clipboard -> add new shoe color with auto cutout

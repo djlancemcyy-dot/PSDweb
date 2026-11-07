@@ -1,10 +1,15 @@
 import os
 import sys
 import io
+import gc
+import glob
 import uuid
 import json
+import shutil
 import socket
+import struct
 import re
+import tempfile
 import datetime
 import threading
 import time
@@ -13,6 +18,8 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+# numpy 独立导入（M4）：不依赖 pytoshop try 块顺带导入
+import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -27,10 +34,48 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# --- P1-2 data/*.json 原子写与全局读写锁 ---
+# 单把全局可重入锁：串行化所有 JSON 配置库的读/写文件操作
+_json_db_lock = threading.RLock()
+
+def atomic_save(path: Path, obj: Any):
+    """原子写 JSON：先写 .tmp 再 os.replace，避免写一半留下损坏文件。持全局锁。"""
+    path = Path(path)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with _json_db_lock:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+
+def safe_load_json(path: Path, default):
+    """持锁读取 JSON；解析失败视为损坏，把坏文件改名 .bak 保留后返回默认值。"""
+    path = Path(path)
+    with _json_db_lock:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            # 文件损坏：备份为 .bak，防止后续反复读到坏文件
+            try:
+                bak = path.with_suffix(path.suffix + ".bak")
+                shutil.copy2(path, bak)
+                print(f"[JSON-DB] 文件损坏已备份为 {bak.name}: {path.name} ({e})")
+            except Exception:
+                pass
+            return default() if callable(default) else default
+        except FileNotFoundError:
+            return default() if callable(default) else default
+        except Exception as e:
+            print(f"[JSON-DB] 读取失败 {path.name}: {e}")
+            return default() if callable(default) else default
+
+def sanitize_name(s: Any) -> str:
+    """清洗用户输入，保证可安全用于文件名（M1）"""
+    return re.sub(r'[^\w一-鿿.\-]', '_', str(s))
+
 PRODUCTS_FILE = DATA_DIR / "products.json"
 if not PRODUCTS_FILE.exists():
-    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
-        json.dump([], f, ensure_ascii=False, indent=2)
+    atomic_save(PRODUCTS_FILE, [])
 
 GROUPS_FILE = DATA_DIR / "groups.json"
 if not GROUPS_FILE.exists():
@@ -57,8 +102,7 @@ if not GROUPS_FILE.exists():
             ]
         }
     ]
-    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
-        json.dump(initial_groups, f, ensure_ascii=False, indent=2)
+    atomic_save(GROUPS_FILE, initial_groups)
 
 LOGOS_FILE = DATA_DIR / "logos.json"
 DEFAULT_LOGOS = [
@@ -108,24 +152,17 @@ DEFAULT_LOGOS = [
     }
 ]
 if not LOGOS_FILE.exists():
-    with open(LOGOS_FILE, "w", encoding="utf-8") as f:
-        json.dump(DEFAULT_LOGOS, f, ensure_ascii=False, indent=2)
+    atomic_save(LOGOS_FILE, DEFAULT_LOGOS)
 
 def load_logos_db() -> List[Dict[str, Any]]:
     if not LOGOS_FILE.exists():
         return list(DEFAULT_LOGOS)
-    try:
-        with open(LOGOS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if not isinstance(data, list) or len(data) == 0:
-                return list(DEFAULT_LOGOS)
-            return data
-    except Exception:
-        return list(DEFAULT_LOGOS)
+    # 空 list 是合法状态（用户清空标贴库）；只有 JSON 解析异常才算损坏（safe_load_json 内部备份 .bak）
+    data = safe_load_json(LOGOS_FILE, lambda: list(DEFAULT_LOGOS))
+    return data if isinstance(data, list) else list(DEFAULT_LOGOS)
 
 def save_logos_db(logos: List[Dict[str, Any]]):
-    with open(LOGOS_FILE, "w", encoding="utf-8") as f:
-        json.dump(logos, f, ensure_ascii=False, indent=2)
+    atomic_save(LOGOS_FILE, logos)
 
 # --- Logo Categories DB ---
 LOGO_CATEGORIES_FILE = DATA_DIR / "logo_categories.json"
@@ -133,19 +170,13 @@ DEFAULT_CATEGORIES = ["常用核心标", "22SS官方库", "鞋身标", "鞋舌�
 
 def load_categories() -> List[str]:
     if not LOGO_CATEGORIES_FILE.exists():
-        with open(LOGO_CATEGORIES_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CATEGORIES, f, ensure_ascii=False, indent=2)
+        atomic_save(LOGO_CATEGORIES_FILE, DEFAULT_CATEGORIES)
         return list(DEFAULT_CATEGORIES)
-    try:
-        with open(LOGO_CATEGORIES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else list(DEFAULT_CATEGORIES)
-    except Exception:
-        return list(DEFAULT_CATEGORIES)
+    data = safe_load_json(LOGO_CATEGORIES_FILE, lambda: list(DEFAULT_CATEGORIES))
+    return data if isinstance(data, list) else list(DEFAULT_CATEGORIES)
 
 def save_categories(cats: List[str]):
-    with open(LOGO_CATEGORIES_FILE, "w", encoding="utf-8") as f:
-        json.dump(cats, f, ensure_ascii=False, indent=2)
+    atomic_save(LOGO_CATEGORIES_FILE, cats)
 
 # --- Custom Layout Templates DB ---
 LAYOUT_TEMPLATES_FILE = DATA_DIR / "layout_templates.json"
@@ -180,19 +211,13 @@ DEFAULT_LAYOUT_TEMPLATES = [
 
 def load_layout_templates() -> List[Dict[str, Any]]:
     if not LAYOUT_TEMPLATES_FILE.exists():
-        with open(LAYOUT_TEMPLATES_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_LAYOUT_TEMPLATES, f, ensure_ascii=False, indent=2)
+        atomic_save(LAYOUT_TEMPLATES_FILE, DEFAULT_LAYOUT_TEMPLATES)
         return list(DEFAULT_LAYOUT_TEMPLATES)
-    try:
-        with open(LAYOUT_TEMPLATES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else list(DEFAULT_LAYOUT_TEMPLATES)
-    except Exception:
-        return list(DEFAULT_LAYOUT_TEMPLATES)
+    data = safe_load_json(LAYOUT_TEMPLATES_FILE, lambda: list(DEFAULT_LAYOUT_TEMPLATES))
+    return data if isinstance(data, list) else list(DEFAULT_LAYOUT_TEMPLATES)
 
 def save_layout_templates(tmpls: List[Dict[str, Any]]):
-    with open(LAYOUT_TEMPLATES_FILE, "w", encoding="utf-8") as f:
-        json.dump(tmpls, f, ensure_ascii=False, indent=2)
+    atomic_save(LAYOUT_TEMPLATES_FILE, tmpls)
 
 TEMPLATE_CONFIG_FILE = DATA_DIR / "template_config.json"
 DEFAULT_TEMPLATE_CONFIG = {
@@ -250,30 +275,24 @@ DEFAULT_TEMPLATE_CONFIG = {
     "is_custom": False
 }
 if not TEMPLATE_CONFIG_FILE.exists():
-    with open(TEMPLATE_CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(DEFAULT_TEMPLATE_CONFIG, f, ensure_ascii=False, indent=2)
+    atomic_save(TEMPLATE_CONFIG_FILE, DEFAULT_TEMPLATE_CONFIG)
 
 def load_template_config() -> Dict[str, Any]:
     if not TEMPLATE_CONFIG_FILE.exists():
         return json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG))
-    try:
-        with open(TEMPLATE_CONFIG_FILE, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-            if not isinstance(cfg, dict):
-                return json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG))
-            merged = json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG))
-            for k, v in cfg.items():
-                if isinstance(v, dict) and k in merged and isinstance(merged[k], dict):
-                    merged[k].update(v)
-                else:
-                    merged[k] = v
-            return merged
-    except Exception:
+    cfg = safe_load_json(TEMPLATE_CONFIG_FILE, lambda: json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG)))
+    if not isinstance(cfg, dict):
         return json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG))
+    merged = json.loads(json.dumps(DEFAULT_TEMPLATE_CONFIG))
+    for k, v in cfg.items():
+        if isinstance(v, dict) and k in merged and isinstance(merged[k], dict):
+            merged[k].update(v)
+        else:
+            merged[k] = v
+    return merged
 
 def save_template_config(cfg: Dict[str, Any]):
-    with open(TEMPLATE_CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    atomic_save(TEMPLATE_CONFIG_FILE, cfg)
 
 FONT_NAME_MAP = {
     "Microsoft YaHei": ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"),
@@ -345,8 +364,11 @@ except Exception as e:
     print(f"[Server] 调优抠图引擎载入异常: {e}")
     shoe_engine = None
 
+# P0-3 抠图并发安全：切模型与推理必须在同一把锁内原子执行，
+# 否则并发请求会在推理中途被 switch_model 换掉 session 导致张量错位/崩溃
+cutout_lock = threading.Lock()
+
 try:
-    import numpy as np
     import packbits
     import pytoshop
     import pytoshop.codecs
@@ -391,6 +413,57 @@ def pil_to_psd_layer(img: Image.Image, name: str, left: int, top: int, max_w=350
         channels=channels
     )
 
+def _build_resolution_info_block():
+    """构造 300DPI 的 ResolutionInfo 图像资源块（Resource ID 1005）。
+    数据布局：hRes(16.16定点) + hResUnit + widthUnit + vRes(16.16定点) + vResUnit + heightUnit，共16字节大端。"""
+    if not HAS_PYTOSHOP:
+        return None
+    import pytoshop.image_resources as pir
+    fixed300 = 300 << 16  # 16.16 定点数表示 300.0
+    data = struct.pack(">IhhIhh", fixed300, 1, 1, fixed300, 1, 1)  # 单位 1 = Pixels/Inch
+    return pir.GenericImageResourceBlock(name="", resource_id=1005, data=data)
+
+def _attach_psd_metadata(psd_doc, composite_rgb: Image.Image):
+    """P0-1：给 pytoshop 生成的 PsdFile 补写 300DPI ResolutionInfo 与 merged composite 合成预览图。"""
+    try:
+        import pytoshop.image_data as pida
+        # 1) 合并合成预览图（merged composite）：Photoshop 第三方查看器无需逐层合成即可预览
+        comp = np.array(composite_rgb.convert("RGB"), dtype=np.uint8)
+        channels = np.stack([comp[:, :, 0], comp[:, :, 1], comp[:, :, 2]], axis=0)
+        psd_doc.image_data = pida.ImageData(channels=channels, compression=enums.Compression.rle)
+        # 2) 300DPI ResolutionInfo 资源块
+        block = _build_resolution_info_block()
+        if block is not None and psd_doc.image_resources is not None:
+            psd_doc.image_resources.blocks.append(block)
+        return True
+    except Exception as e:
+        print(f"[Render] PSD 元信息补写失败（不影响分层内容）: {e}")
+        return False
+
+def verify_psd_dpi(psd_path: Path, expect_dpi: float = 300.0) -> bool:
+    """P0-1：导出后用 psd-tools 重开文件断言 DPI==300；失败打 warning，不阻断流程。"""
+    try:
+        from psd_tools import PSDImage
+        from psd_tools.constants import Resource
+        psd = PSDImage.open(str(psd_path))
+        info = psd.image_resources.get_data(Resource.RESOLUTION_INFO)
+        if info is None:
+            print(f"[Render][Warning] PSD 未包含 ResolutionInfo: {psd_path.name}")
+            return False
+        # psd-tools ResoulutionInfo.horizontal 为 16.16 定点整数
+        h_res = float(getattr(info, "horizontal", 0)) / 65536.0
+        if abs(h_res - expect_dpi) > 1.0:
+            print(f"[Render][Warning] PSD DPI 校验失败: 期望 {expect_dpi}, 实际 {h_res}: {psd_path.name}")
+            return False
+        return True
+    except ImportError:
+        # TODO: 环境无 psd-tools 时无法回读校验 DPI，保留此 TODO 以便将来接入其它校验方式
+        print("[Render][Warning] 未安装 psd-tools，跳过 PSD DPI 回读校验")
+        return False
+    except Exception as e:
+        print(f"[Render][Warning] PSD DPI 回读校验异常: {e}")
+        return False
+
 def get_lan_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -410,10 +483,11 @@ app = FastAPI(
     version="2.1.0"
 )
 
+# P1-3 安全收紧：仅允许本机前端来源，禁止携带凭据
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -665,12 +739,14 @@ def update_logo_info(logo_id: str, req: UpdateLogoRequest):
 def remove_logo_background(img: Image.Image) -> Image.Image:
     img_rgba = img.convert("RGBA")
     try:
-        if shoe_engine and shoe_engine.session:
-            import rembg
-            out_img = rembg.remove(img_rgba, session=shoe_engine.session)
-            alpha = out_img.split()[-1]
-            if alpha.getbbox():
-                return out_img
+        # 持锁访问共享 session，避免推理中途被 switch_model 替换
+        with cutout_lock:
+            if shoe_engine and shoe_engine.session:
+                import rembg
+                out_img = rembg.remove(img_rgba, session=shoe_engine.session)
+                alpha = out_img.split()[-1]
+                if alpha.getbbox():
+                    return out_img
     except Exception:
         pass
 
@@ -1158,15 +1234,11 @@ async def import_pdf_logos_endpoint(req: ImportPdfLogosRequest):
 def load_groups_db() -> List[Dict[str, Any]]:
     if not GROUPS_FILE.exists():
         return []
-    try:
-        with open(GROUPS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
+    data = safe_load_json(GROUPS_FILE, list)
+    return data if isinstance(data, list) else []
 
 def save_groups_db(groups: List[Dict[str, Any]]):
-    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
-        json.dump(groups, f, ensure_ascii=False, indent=2)
+    atomic_save(GROUPS_FILE, groups)
 
 @app.get("/api/groups")
 def list_groups():
@@ -1220,15 +1292,11 @@ def save_all_groups(groups: List[TaskGroupItem]):
 def load_products_db() -> List[Dict[str, Any]]:
     if not PRODUCTS_FILE.exists():
         return []
-    try:
-        with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
+    data = safe_load_json(PRODUCTS_FILE, list)
+    return data if isinstance(data, list) else []
 
 def save_products_db(items: List[Dict[str, Any]]):
-    with open(PRODUCTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+    atomic_save(PRODUCTS_FILE, items)
 
 @app.get("/api/products")
 def list_products():
@@ -1309,13 +1377,27 @@ def save_product_snapshot(product_id: str, req: SnapshotRequest):
 @app.post("/api/products/upload-cover")
 async def upload_product_cover(file: UploadFile = File(...)):
     try:
-        raw_ext = Path(file.filename).suffix.lower() or ".jpg"
+        raw_ext = Path(file.filename or "").suffix.lower()
+        # P1-3：扩展名白名单，且用 PIL 打开重编码后再保存，杜绝伪装图片/脚本文件
+        if raw_ext not in {".png", ".jpg", ".jpeg", ".webp"}:
+            raise HTTPException(status_code=400, detail="仅支持 png/jpg/jpeg/webp 封面图片")
         unique_id = uuid.uuid4().hex[:8]
         cover_filename = f"prod_cover_{unique_id}{raw_ext}"
         cover_path = UPLOADS_DIR / cover_filename
-        contents = await file.read()
-        with open(cover_path, "wb") as f:
-            f.write(contents)
+        content = await file.read()
+        try:
+            with Image.open(io.BytesIO(content)) as im:
+                im.load()
+                if raw_ext in (".jpg", ".jpeg"):
+                    im.convert("RGB").save(cover_path, format="JPEG", quality=95)
+                elif raw_ext == ".webp":
+                    im.convert("RGB").save(cover_path, format="WEBP", quality=95)
+                else:
+                    im.convert("RGBA").save(cover_path, format="PNG")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=400, detail="文件内容不是有效图片")
         return {
             "status": "success",
             "cover_url": f"/static/uploads/{cover_filename}",
@@ -1508,9 +1590,11 @@ def do_single_cutout(raw_filename: str, force: bool = False, model_id: Optional[
             }
             
     if shoe_engine:
-        if model_id and model_id != shoe_engine.active_model_id:
-            shoe_engine.switch_model(model_id)
-        res = shoe_engine.process_shoe(str(raw_path), str(cutout_path), crop=True, pad=8)
+        # P0-3：按需切模型 + 推理为原子操作，整段持锁
+        with cutout_lock:
+            if model_id and model_id != shoe_engine.active_model_id:
+                shoe_engine.switch_model(model_id)
+            res = shoe_engine.process_shoe(str(raw_path), str(cutout_path), crop=True, pad=8)
         return {
             "cutout_filename": cutout_filename,
             "cutout_url": f"/static/uploads/{cutout_filename}",
@@ -1549,7 +1633,9 @@ def select_cutout_model(req: SelectModelRequest):
     if not shoe_engine:
         raise HTTPException(status_code=500, detail="鞋靴抠图引擎未初始化")
     try:
-        res = shoe_engine.switch_model(req.model_id)
+        # P0-3：手动切模型也走同一把锁，避免与进行中的推理并发
+        with cutout_lock:
+            res = shoe_engine.switch_model(req.model_id)
         return {"status": "success", "result": res, "active_model": shoe_engine.get_active_model()}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"切换模型失败: {e}")
@@ -1557,8 +1643,7 @@ def select_cutout_model(req: SelectModelRequest):
 @app.post("/api/cutout-batch")
 def process_batch_cutout(req: BatchCutoutRequest):
     target_names = req.filenames or req.raw_filenames or []
-    if req.model_id and shoe_engine:
-        shoe_engine.switch_model(req.model_id)
+    # P0-3：不在锁外预切模型；逐张由 do_single_cutout 在锁内完成『切模型+推理』原子操作
     results = []
     for rname in target_names:
         try:
@@ -1726,15 +1811,11 @@ def export_photoshop_native_psd(
             except Exception as ex_disp:
                 print(f"[Render-Native] COM Dispatch 尝试 {attempt+1} 失败: {ex_disp}")
                 if attempt == 0:
-                    for cand_exe in [
-                        r"C:\Program Files\Adobe\Adobe Photoshop 2024\Photoshop.exe",
-                        r"C:\Program Files\Adobe\Adobe Photoshop 2023\Photoshop.exe",
-                        r"C:\Program Files\Adobe\Adobe Photoshop 2022\Photoshop.exe"
-                    ]:
-                        if os.path.exists(cand_exe):
-                            subprocess.Popen([cand_exe, "/Automation"])
-                            time.sleep(8)
-                            break
+                    # M4：glob 探测所有已装版本并取最新（路径字典序最大者），兼容 CC2019~2025+
+                    ps_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe"))
+                    if ps_candidates:
+                        subprocess.Popen([ps_candidates[-1], "/Automation"])
+                        time.sleep(8)
         if not psApp:
             print("[Render-Native] 无法连接到 Photoshop.Application COM 实例")
             return False
@@ -1918,7 +1999,9 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     # 2. 绘制矢量表格线条
     lines_layer = create_table_lines_image(lines_cfg)
     base_img.paste(lines_layer, (0, 0), lines_layer)
-    temp_lines_path = OUTPUT_DIR / "temp_lines.png"
+    # M1：每次渲染使用独立临时目录，避免固定名 temp_lines.png 被并发渲染互相覆盖
+    render_tmpdir = Path(tempfile.mkdtemp(prefix="render_tmp_", dir=str(OUTPUT_DIR)))
+    temp_lines_path = render_tmpdir / "temp_lines.png"
     lines_layer.save(temp_lines_path, format="PNG")
     
     # 3. 动态字体解析
@@ -2035,7 +2118,8 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
         shoe_scaled = shoe_img.resize((shoe_w, shoe_h), Image.Resampling.LANCZOS)
         base_img.paste(shoe_scaled, (shoe_x, shoe_y), shoe_scaled)
         
-        temp_shoe_path = OUTPUT_DIR / f"temp_shoe_{idx+1}_{shoe.color_name}.png"
+        # M1：临时文件进本次渲染专属临时目录，用户输入统一清洗
+        temp_shoe_path = render_tmpdir / f"temp_shoe_{idx+1}_{sanitize_name(shoe.color_name)}.png"
         shoe_scaled.save(temp_shoe_path, format="PNG")
         
         color_name = shoe.color_name or f"配色{idx+1}"
@@ -2070,7 +2154,7 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             abs_ly = int(shoe_y + logo.rel_y * shoe_h)
             base_img.paste(scaled_logo, (abs_lx, abs_ly), scaled_logo)
             
-            temp_l_path = OUTPUT_DIR / f"temp_logo_{idx+1}_{l_idx+1}.png"
+            temp_l_path = render_tmpdir / f"temp_logo_{idx+1}_{l_idx+1}_{sanitize_name(logo.logo_id)}.png"
             scaled_logo.save(temp_l_path, format="PNG")
             
             s_logos.append({
@@ -2120,8 +2204,9 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             print(f"[Render] canvas_logo error: {e}")
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    sku_part = task.sku.strip() or task.name.strip() or "鞋样审核"
-    date_part = task.material_code.replace(".", "")
+    # 输出文件名中的用户输入统一清洗，避免路径注入与 /api/download 白名单拦截
+    sku_part = sanitize_name(task.sku.strip() or task.name.strip() or "鞋样审核")
+    date_part = sanitize_name(task.material_code.replace(".", ""))
     out_filename = f"{sku_part}_{date_part}_{timestamp}.jpg"
     out_filepath = OUTPUT_DIR / out_filename
     
@@ -2133,6 +2218,8 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     out_psd_filename = f"{sku_part}_{date_part}_{timestamp}.psd"
     out_psd_filepath = OUTPUT_DIR / out_psd_filename
     has_psd = False
+    editable_text = False   # P0-2：默认按 pytoshop 路径（文字为栅格化图层）
+    dpi_verified = False    # P0-1：psd-tools 回读校验结果
 
     # 原生 Pytoshop 极速分层 PSD 写入 (毫秒级直出)
     if HAS_PYTOSHOP:
@@ -2143,17 +2230,23 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
                 all_psd_layers.append(pytoshop_base_layer)
             if pytoshop_groups:
                 all_psd_layers.extend(pytoshop_groups)
-            
+
             if all_psd_layers:
                 psd_doc = nested_layers.nested_layers_to_psd(
                     all_psd_layers,
                     color_mode=enums.ColorMode.rgb,
-                    compression=enums.Compression.raw
+                    compression=enums.Compression.rle  # P0-1：RLE 压缩，显著减小体积
                 )
+                # P0-1：补写 300DPI ResolutionInfo 与 merged composite 合成预览图
+                _attach_psd_metadata(psd_doc, rgb_img)
                 with open(out_psd_filepath, "wb") as f_psd:
                     psd_doc.write(f_psd)
                 has_psd = True
-                print(f"[Render] Pytoshop 极速生成原生分层 PSD 成功 (耗时: {time.time()-t_psd0:.3f}s): {out_psd_filepath}")
+                editable_text = False
+                # P0-2：pytoshop 路径的文字图层为栅格化位图，不可在 Photoshop 中编辑文字
+                print(f"[Render] Pytoshop 极速生成分层 PSD 成功 (耗时: {time.time()-t_psd0:.3f}s；注意：文字为栅格化图层，不可编辑): {out_psd_filepath}")
+                # P0-1：导出后回读断言 DPI==300，失败仅告警不阻断
+                dpi_verified = verify_psd_dpi(out_psd_filepath)
         except Exception as ex_psd:
             print(f"[Render] Pytoshop 生成 PSD 失败: {ex_psd}")
             has_psd = False
@@ -2170,9 +2263,21 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
                 shoes_render_info,
                 num_shoes
             )
+            if has_psd:
+                # P0-2：COM 路径由 Photoshop 原生文字图层构成，文字可编辑
+                editable_text = True
+                print(f"[Render] Photoshop COM 原生 PSD 生成成功（文字图层可编辑）: {out_psd_filepath}")
+                # COM 路径由 Photoshop 以 300DPI 建文档，同样回读确认
+                dpi_verified = verify_psd_dpi(out_psd_filepath)
         except Exception as ex_com:
             print(f"[Render] Photoshop COM 降级失败: {ex_com}")
-            
+
+    # M1：渲染临时目录用完即清理（COM 路径的 importPNG 已在上方同步读完）
+    try:
+        shutil.rmtree(render_tmpdir, ignore_errors=True)
+    except Exception:
+        pass
+
     return {
         "status": "success",
         "task_id": task.id,
@@ -2183,6 +2288,8 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
         "psd_filename": out_psd_filename if has_psd else None,
         "psd_filepath": str(out_psd_filepath) if has_psd else None,
         "psd_download_url": f"/api/download/{out_psd_filename}" if has_psd else None,
+        "editable_text": editable_text if has_psd else None,
+        "dpi_verified": dpi_verified if has_psd else None,
         "width": rgb_img.width,
         "height": rgb_img.height
     }
@@ -2209,10 +2316,17 @@ def batch_render_all_tasks(req: BatchRenderRequest):
 
 @app.get("/api/download/{filename}")
 def download_output(filename: str):
-    target = OUTPUT_DIR / filename
-    if not target.exists():
+    # P1-3：文件名白名单（中英文/数字/._-）+ 解析后必须位于输出目录内，杜绝路径穿越
+    if not re.fullmatch(r'[\w一-鿿.\-]+', filename):
+        raise HTTPException(status_code=400, detail="非法文件名")
+    out_root = Path(OUTPUT_DIR).resolve()
+    target = (out_root / filename).resolve()
+    if not target.is_relative_to(out_root):
+        raise HTTPException(status_code=403, detail="禁止访问输出目录之外的文件")
+    if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(target, filename=filename, media_type="image/jpeg")
+    media_type = "image/jpeg" if target.suffix.lower() in (".jpg", ".jpeg") else "application/octet-stream"
+    return FileResponse(target, filename=filename, media_type=media_type)
 
 
 @app.get("/api/settings")
@@ -2229,6 +2343,12 @@ def save_system_settings(req: Dict[str, Any]):
     new_path = req.get("output_dir", "").strip()
     if new_path:
         p = Path(new_path)
+        # P1-3：输出目录必须位于用户主目录之下，防止写到系统目录
+        try:
+            if not p.resolve().is_relative_to(Path.home().resolve()):
+                raise HTTPException(status_code=400, detail="输出目录必须位于用户主目录之下")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="输出目录必须位于用户主目录之下")
         try:
             p.mkdir(parents=True, exist_ok=True)
             OUTPUT_DIR = p
@@ -2277,6 +2397,13 @@ async def choose_output_folder_dialog():
 def open_output_folder(path: Optional[str] = None):
     try:
         target = Path(path) if path else OUTPUT_DIR
+        # P1-3：显式指定路径时必须位于用户主目录之下
+        if path:
+            try:
+                if not target.resolve().is_relative_to(Path.home().resolve()):
+                    raise HTTPException(status_code=400, detail="仅允许打开用户主目录之下的文件夹")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="仅允许打开用户主目录之下的文件夹")
         target.mkdir(parents=True, exist_ok=True)
         try:
             os.startfile(str(target))
