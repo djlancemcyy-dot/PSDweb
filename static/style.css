@@ -3782,3 +3782,86 @@ body.qz-app {
 .stage-logo-element.selected .logo-resize-handle {
   display: block;
 }
+/* ==========================================================================
+   素材库面板重构：正方形深色棋盘格格子 + 悬浮预览 + 双击大图弹窗
+   ========================================================================== */
+
+/* 素材格子：正方形（aspect-ratio 1:1），深色棋盘格底纹（8px 方格，适配深色主题），
+   浅色/白色/透明底素材在深色格子上清晰可见，图片 contain 居中 */
+#drawer-logos-grid .mat-grid-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  overflow: hidden;
+  /* 深色棋盘格：8px 方格（16px 周期），conic-gradient 实现 */
+  background: repeating-conic-gradient(#5c626b 0% 25%, #3a3f46 0% 50%) 50% / 16px 16px;
+  border: 1px solid var(--border-light, #e2e8f0);
+}
+#drawer-logos-grid .mat-grid-thumb img {
+  max-width: 88%;
+  max-height: 88%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* 悬浮放大预览浮层（tooltip 式，JS 控制定位与 300ms 延迟） */
+.mat-hover-preview {
+  position: fixed;
+  z-index: 500;
+  width: 220px;
+  padding: 8px;
+  background: var(--bg-panel, #ffffff);
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  display: none;
+  pointer-events: none;
+}
+.mat-hover-preview img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#5c626b 0% 25%, #3a3f46 0% 50%) 50% / 16px 16px;
+}
+.mat-hover-preview .mat-hover-preview-name {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-main, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 双击大图预览弹窗：黑色遮罩 + 居中大图 + 点击任意处关闭 */
+#modal-mat-preview {
+  background: rgba(0, 0, 0, 0.85);
+  cursor: zoom-out;
+}
+.mat-preview-box {
+  max-width: 82vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.mat-preview-box img {
+  max-width: 82vw;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: repeating-conic-gradient(#5c626b 0% 25%, #3a3f46 0% 50%) 50% / 16px 16px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+}
+.mat-preview-name {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}

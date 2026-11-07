@@ -419,32 +419,27 @@
 
     <!-- Right-Side Floating Material Library Drawer (复原至右侧边栏，垂直全高展开，空间开阔) -->
     <aside class="materials-drawer open" id="materials-drawer">
-      <div class="drawer-handle" id="btn-toggle-materials-drawer" title="点击展开/收起标贴素材库">
+      <div class="drawer-handle" id="btn-toggle-materials-drawer" title="点击展开/收起素材库">
         <span class="drawer-handle-icon">🎨</span>
-        <span class="drawer-handle-text">标贴图案库</span>
+        <span class="drawer-handle-text">素材库</span>
         <span class="drawer-badge" id="materials-count-badge">0</span>
       </div>
       <div class="drawer-content">
-        <div class="drawer-header">
-          <div class="drawer-title-row">
-            <span class="drawer-title">🎨 标贴与图案素材库</span>
-            <span class="drawer-count-chip" id="drawer-total-count">0款</span>
-          </div>
-          <div class="drawer-header-actions">
-            <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-import-material-unified" title="选择图片或文件夹导入">📂 导入素材</button>
-            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-toggle-batch-mode" title="多选批量管理">☑️ 批量管理</button>
-            <button class="btn-drawer-close" id="btn-close-materials-drawer" title="收起素材库">✕</button>
-          </div>
-        </div>
-        <div class="drawer-search-row" style="margin-top: 8px;">
+        <!-- 顶部菜单栏重排：第一行搜索框全宽（右端保留收起按钮） -->
+        <div class="drawer-search-row" style="display: flex; align-items: center; gap: 6px;">
           <input type="text" id="drawer-logo-search" placeholder="🔍 搜索素材名称..." class="drawer-search-input">
+          <button class="btn-drawer-close" id="btn-close-materials-drawer" title="收起素材库" style="flex-shrink: 0;">✕</button>
         </div>
-        <div class="drawer-cat-tabs" id="drawer-cat-tabs" style="margin-top: 8px;">
-          <!-- Dynamic Category Tabs -->
+        <!-- 第二行：左侧分类筛选标签，右侧导入素材按钮 -->
+        <div class="drawer-cat-row" style="display: flex; align-items: center; gap: 6px; margin-top: 8px;">
+          <div class="drawer-cat-tabs" id="drawer-cat-tabs">
+            <!-- Dynamic Category Tabs -->
+          </div>
+          <button class="qz-btn qz-btn-primary qz-btn-xs" id="btn-import-material-unified" title="选择图片或文件夹导入" style="flex-shrink: 0;">📂 导入素材</button>
         </div>
 
-        <!-- Batch Action Toolbar (Visible when in batch mode) -->
-        <div class="mat-batch-bar" id="mat-batch-bar" style="display: none; margin-top: 8px;">
+        <!-- Batch Action Toolbar (多选工具条：常显，直接在素材卡上勾选) -->
+        <div class="mat-batch-bar" id="mat-batch-bar" style="margin-top: 8px;">
           <label class="batch-select-all-label">
             <input type="checkbox" id="mat-batch-check-all"> 全选本页
           </label>
@@ -454,7 +449,7 @@
               <option value="">移动至分组...</option>
             </select>
             <button class="qz-btn qz-btn-danger qz-btn-xs" id="btn-mat-batch-delete">🗑️ 删除</button>
-            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-mat-batch-cancel">退出多选</button>
+            <button class="qz-btn qz-btn-secondary qz-btn-xs" id="btn-mat-batch-cancel">清空选择</button>
           </div>
         </div>
 
@@ -889,6 +884,14 @@
         <button class="qz-btn qz-btn-primary" id="btn-save-cur-layout-as-tmpl">💾 将当前排版存为新模版</button>
         <button class="qz-btn qz-btn-secondary" id="btn-close-layout-modal-foot">关闭</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: 素材库双击大图预览（黑色遮罩 + 居中大图，点击任意处关闭） -->
+  <div class="qz-modal mat-preview-modal" id="modal-mat-preview" title="点击关闭预览">
+    <div class="mat-preview-box">
+      <img id="mat-preview-img" src="" alt="素材大图预览">
+      <div class="mat-preview-name" id="mat-preview-name"></div>
     </div>
   </div>
 

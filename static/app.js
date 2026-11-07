@@ -33,7 +33,7 @@ const state = {
   selected_canvas_logo_id: null,
   selected_logo: null,
   clipboard_logo: null,
-  is_batch_mat_mode: false,
+  is_batch_mat_mode: true,    // 多选工具条常显：素材卡上的勾选框常驻，无需再切换「批量管理」模式
   selected_mat_ids: new Set(),
   layout_templates: [],
   active_layout_template_id: "tmpl_grid_4",
@@ -4193,7 +4193,7 @@ async function setupMaterialsDrawer() {
     };
   }
   const searchInput = document.getElementById("drawer-logo-search");
-  const btnBatchMode = document.getElementById("btn-toggle-batch-mode");
+  // 「批量管理」切换按钮已移除：多选工具条常显，素材卡勾选框常驻
   const btnImportUnified = document.getElementById("btn-import-material-unified");
   const filePicker = document.getElementById("material-multi-file-input");
   const folderPicker = document.getElementById("material-folder-input");
@@ -4201,17 +4201,6 @@ async function setupMaterialsDrawer() {
   if (searchInput) {
     searchInput.oninput = (e) => {
       state.logo_search_query = e.target.value.trim().toLowerCase();
-      renderMaterialsDrawerLogos();
-    };
-  }
-
-  if (btnBatchMode) {
-    btnBatchMode.onclick = () => {
-      state.is_batch_mat_mode = !state.is_batch_mat_mode;
-      state.selected_mat_ids.clear();
-      btnBatchMode.classList.toggle("active", state.is_batch_mat_mode);
-      const batchBar = document.getElementById("mat-batch-bar");
-      if (batchBar) batchBar.style.display = state.is_batch_mat_mode ? "flex" : "none";
       renderMaterialsDrawerLogos();
     };
   }
@@ -4231,14 +4220,14 @@ async function setupMaterialsDrawer() {
     };
   }
 
+  // 「清空选择」按钮：仅清除当前勾选，多选工具条本身保持常显
   const btnBatchCancel = document.getElementById("btn-mat-batch-cancel");
   if (btnBatchCancel) {
     btnBatchCancel.onclick = () => {
-      state.is_batch_mat_mode = false;
       state.selected_mat_ids.clear();
-      const batchBar = document.getElementById("mat-batch-bar");
-      if (batchBar) batchBar.style.display = "none";
-      if (btnBatchMode) btnBatchMode.classList.remove("active");
+      const checkAllBox = document.getElementById("mat-batch-check-all");
+      if (checkAllBox) checkAllBox.checked = false;
+      updateBatchBarUI();
       renderMaterialsDrawerLogos();
     };
   }
@@ -4440,6 +4429,65 @@ function updateBatchBarUI() {
   }
 }
 
+// --- 素材库悬浮放大预览浮层（tooltip 式，300ms 延迟出现，定位在格子旁不遮挡） ---
+let matHoverPreviewTimer = null;
+
+function getMatHoverPreviewEl() {
+  // 惰性创建全局唯一的悬浮预览浮层
+  let tip = document.getElementById("mat-hover-preview");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "mat-hover-preview";
+    tip.className = "mat-hover-preview";
+    tip.innerHTML = `<img alt="素材放大预览"><div class="mat-hover-preview-name"></div>`;
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+function scheduleMatHoverPreview(logo, imgPath, card) {
+  cancelMatHoverPreview();
+  matHoverPreviewTimer = setTimeout(() => {
+    const tip = getMatHoverPreviewEl();
+    tip.querySelector("img").src = imgPath;
+    tip.querySelector(".mat-hover-preview-name").textContent = logo.name || "";
+    tip.style.display = "block";
+    // 跟随格子位置：素材库在屏幕右侧，浮层优先显示在格子左侧，避免遮挡格子本身
+    const rect = card.getBoundingClientRect();
+    const tipW = tip.offsetWidth || 236;
+    const tipH = tip.offsetHeight || 260;
+    let left = rect.left - tipW - 12;
+    if (left < 8) left = Math.min(rect.right + 12, window.innerWidth - tipW - 8);
+    let top = rect.top + rect.height / 2 - tipH / 2;
+    top = Math.max(8, Math.min(top, window.innerHeight - tipH - 8));
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  }, 300);
+}
+
+function cancelMatHoverPreview() {
+  if (matHoverPreviewTimer) {
+    clearTimeout(matHoverPreviewTimer);
+    matHoverPreviewTimer = null;
+  }
+  const tip = document.getElementById("mat-hover-preview");
+  if (tip) tip.style.display = "none";
+}
+
+// --- 素材库双击大图预览弹窗（复用 qz-modal 体系：黑色遮罩 + 居中大图 + 点击关闭） ---
+function openMatPreviewModal(logo, imgPath) {
+  const modal = document.getElementById("modal-mat-preview");
+  if (!modal) return;
+  document.getElementById("mat-preview-img").src = imgPath;
+  document.getElementById("mat-preview-name").textContent = logo.name || "";
+  modal.classList.add("show");
+  // 点击遮罩或大图任意处关闭（一次性绑定）
+  if (!modal.dataset.closeBound) {
+    modal.dataset.closeBound = "1";
+    modal.addEventListener("click", () => modal.classList.remove("show"));
+  }
+}
+
 function renderMaterialsDrawerLogos() {
   const grid = document.getElementById("drawer-logos-grid");
   if (!grid) return;
@@ -4466,7 +4514,7 @@ function renderMaterialsDrawerLogos() {
 
     card.innerHTML = `
       ${state.is_batch_mat_mode ? `<input type="checkbox" class="mat-card-chk" ${isChecked ? "checked" : ""} style="position:absolute; top:4px; left:4px; z-index:2; cursor:pointer;">` : ""}
-      <div class="logo-card-img-wrap checkerboard-bg" style="width:100%; height:75px; display:flex; align-items:center; justify-content:center; border-radius:4px; overflow:hidden;">
+      <div class="logo-card-img-wrap mat-grid-thumb" title="悬浮查看放大预览，双击查看大图">
         <img src="${imgPath}" alt="${logo.name}" style="max-width:90%; max-height:90%; object-fit:contain; pointer-events:none;">
       </div>
       <div class="logo-card-title-text" style="margin-top:4px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${logo.name}">${logo.name}</div>
@@ -4481,6 +4529,17 @@ function renderMaterialsDrawerLogos() {
     card.ondragstart = (e) => {
       e.dataTransfer.setData("application/json", JSON.stringify(logo));
       e.dataTransfer.setData("text/plain", logo.id);
+    };
+
+    // 悬浮格子：300ms 延迟显示放大预览浮层（位于格子旁，不遮挡格子）
+    card.onmouseenter = () => scheduleMatHoverPreview(logo, imgPath, card);
+    card.onmouseleave = () => cancelMatHoverPreview();
+
+    // 双击格子：打开大图预览弹窗（黑色遮罩 + 居中大图 + 点击关闭）
+    card.ondblclick = (e) => {
+      e.stopPropagation();
+      cancelMatHoverPreview();
+      openMatPreviewModal(logo, imgPath);
     };
 
     // Checkbox toggle

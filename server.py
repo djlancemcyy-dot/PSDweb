@@ -337,6 +337,124 @@ def create_table_lines_image(lines_cfg: Dict[str, Any], width=3508, height=2480)
     d.line([(470, 724), (470, 840)], fill=inner_color, width=inner_w)
     return img
 
+# ============================================================
+# 表格文字排版事实源（JPG 导出 / PSD 导出 / 前端预览 三方共用）
+# 坐标对齐前端 static/app.js renderTableTexts() 与 static/style.css：
+#   表头标题(960,130) 品类(880,300) 审核(2680,145 间隔320) 面料(2480,395) 鞋底(2480,520)
+#   左表 10 行：标签列 padding-left 32、数值列 padding-left 40、行内垂直居中
+# ============================================================
+TABLE_ROW_RECTS = [  # 左表 10 行 (top, height)，与 app.js rowsDef 及 SVG 横线一致
+    (258, 116), (374, 117), (491, 117), (608, 116), (724, 116),
+    (840, 115), (955, 115), (1070, 115), (1185, 115), (1300, 122)
+]
+HEADER_TITLE_POS = (960, 130)
+HEADER_CATEGORY_POS = (880, 300)
+HEADER_REVIEWER_POS = (2680, 145)
+HEADER_REVIEWER_GAP = 320      # .reviewer-text flex gap
+FABRICS_TEXT_POS = (2480, 395)
+SOLES_TEXT_POS = (2480, 520)
+TABLE_LEFT_X = 28              # 左表格外框 x（与 SVG rect x=28 一致）
+LEFT_LABEL_PAD_X = 32          # .left-row-lbl padding-left
+LEFT_VALUE_PAD_X = 40          # .left-row-val padding-left
+SIZE_SUBLABEL_W = 185          # .left-row-sublbl width
+SIZE_SUBLABEL_PAD_X = 20       # .left-row-sublbl padding-left
+PS_PT_PER_PX = 72.0 / 300.0    # 300DPI 画布 像素→点 换算
+
+LABEL_DEFAULTS = {
+    "sku": "货号:", "season": "季节:", "craft": "工艺:", "category": "类别:",
+    "last": "楦型:", "size": "尺码", "designer": "设计:", "patternmaker": "版师:",
+    "order": "打单:", "print": "印花:", "material_code": "素材编号:",
+    "fabrics": "面料:", "soles": "鞋底:"
+}
+
+def compute_table_text_layout(tmpl_cfg: Dict[str, Any], task) -> List[Dict[str, Any]]:
+    """表格文字坐标统一计算（JPG/PSD 共用，避免双轨）。
+    每个条目: name/text/x/y_top(PIL 用)/y_baseline(JSX 用)/size_px/size_pt/font_key/font_name/weight/color
+    """
+    fonts_cfg = tmpl_cfg.get("fonts", {})
+    lines_cfg = tmpl_cfg.get("lines", {})
+    lbls = tmpl_cfg.get("labels", {})
+    label_w = int(lines_cfg.get("left_table_label_w", 285))
+
+    def _pil_font(key):
+        return resolve_pil_font(
+            fonts_cfg.get(f"{key}_font", "Microsoft YaHei"),
+            int(fonts_cfg.get(f"{key}_size", 52)),
+            fonts_cfg.get(f"{key}_weight") == "bold")
+
+    def _entry(name, text, x, y_top, key):
+        f = _pil_font(key)
+        ascent, descent = f.getmetrics()
+        size_px = int(fonts_cfg.get(f"{key}_size", 52))
+        return {
+            "name": name, "text": str(text), "x": int(x), "y_top": int(y_top),
+            "y_baseline": int(y_top + ascent),
+            "size_px": size_px, "size_pt": round(size_px * PS_PT_PER_PX, 2),
+            "font_key": key,
+            "font_name": fonts_cfg.get(f"{key}_font", "Microsoft YaHei"),
+            "weight": fonts_cfg.get(f"{key}_weight", "normal"),
+            "color": fonts_cfg.get(f"{key}_color", "#000000"),
+        }
+
+    def _header_y(css_top, key):
+        # CSS 盒顶 → PIL 字形顶：按 normal line-height(≈1.3em) 内的居中偏移估算
+        f = _pil_font(key)
+        ascent, descent = f.getmetrics()
+        size_px = int(fonts_cfg.get(f"{key}_size", 52))
+        delta = (int(size_px * 1.3) - (ascent + descent)) // 2
+        return css_top + max(0, delta)
+
+    def _row_center_y(y0, h, key):
+        # 前端 .left-grid-row 为 flex 垂直居中：字形顶 = 行顶 + (行高 - 字形高)/2
+        f = _pil_font(key)
+        ascent, descent = f.getmetrics()
+        return y0 + max(0, (h - (ascent + descent)) // 2)
+
+    entries = []
+    # --- 表头 ---
+    title = (tmpl_cfg.get("title") or "臻兴科技开发样品单").strip() or "臻兴科技开发样品单"
+    entries.append(_entry("表头标题", title, HEADER_TITLE_POS[0], _header_y(HEADER_TITLE_POS[1], "title"), "title"))
+    cat = (tmpl_cfg.get("category_title") or "成人女鞋").strip() or "成人女鞋"
+    entries.append(_entry("品类名称", cat, HEADER_CATEGORY_POS[0], _header_y(HEADER_CATEGORY_POS[1], "category"), "category"))
+    rev_l = tmpl_cfg.get("reviewer", "审核:")
+    rev_r = tmpl_cfg.get("re_reviewer", "复核:")
+    rev_y = _header_y(HEADER_REVIEWER_POS[1], "labels")
+    entries.append(_entry("审核", rev_l, HEADER_REVIEWER_POS[0], rev_y, "labels"))
+    rev_w = _pil_font("labels").getlength(rev_l)
+    entries.append(_entry("复核", rev_r, HEADER_REVIEWER_POS[0] + rev_w + HEADER_REVIEWER_GAP, rev_y, "labels"))
+    # --- 面料 / 鞋底（标签文字取自配置，不再硬编码） ---
+    entries.append(_entry("面料", f"{lbls.get('fabrics', '面料:')} {task.fabrics}",
+                          FABRICS_TEXT_POS[0], _header_y(FABRICS_TEXT_POS[1], "table"), "table"))
+    entries.append(_entry("鞋底", f"{lbls.get('soles', '鞋底:')} {task.soles}",
+                          SOLES_TEXT_POS[0], _header_y(SOLES_TEXT_POS[1], "table"), "table"))
+    # --- 左表 10 行 ---
+    row_defs = [
+        ("sku", "sku", task.sku), ("season", "season", task.season),
+        ("craft", "craft", task.craft), ("category", "category", task.category),
+        ("size", "last", task.size),
+        ("designer", "designer", ""), ("patternmaker", "patternmaker", ""),
+        ("order", "order", ""), ("print", "print", ""),
+        ("material_code", "material_code", task.material_code),
+    ]
+    label_col_x = TABLE_LEFT_X + LEFT_LABEL_PAD_X                       # 60
+    value_col_x = TABLE_LEFT_X + (label_w - TABLE_LEFT_X) + LEFT_VALUE_PAD_X   # label_w + 40
+    sublabel_col_x = TABLE_LEFT_X + (label_w - TABLE_LEFT_X) + SIZE_SUBLABEL_PAD_X
+    size_value_x = sublabel_col_x + SIZE_SUBLABEL_W + LEFT_VALUE_PAD_X
+    for i, (field, label_key, val) in enumerate(row_defs):
+        y0, rh = TABLE_ROW_RECTS[i]
+        label_txt = lbls.get(label_key, LABEL_DEFAULTS[label_key])
+        entries.append(_entry(label_txt, label_txt, label_col_x, _row_center_y(y0, rh, "labels"), "labels"))
+        if field == "size":
+            # 尺码行结构：楦型: | 尺码 | 36（子标签与数值分列）
+            sub_txt = lbls.get("size", LABEL_DEFAULTS["size"])
+            entries.append(_entry(sub_txt, sub_txt, sublabel_col_x, _row_center_y(y0, rh, "labels"), "labels"))
+            if val:
+                entries.append(_entry(f"尺码数值 {val}", val, size_value_x, _row_center_y(y0, rh, "table"), "table"))
+        elif val:
+            entries.append(_entry(f"{label_txt} {val}", val, value_col_x, _row_center_y(y0, rh, "table"), "table"))
+    return entries
+
+
 # 100% Self-contained: Enforce U2NET_HOME to point directly to project models directory
 os.environ["U2NET_HOME"] = str(MODELS_DIR)
 
@@ -1793,109 +1911,80 @@ def export_photoshop_native_psd(
     shoes_render_info: List[Dict[str, Any]],
     num_shoes: int
 ) -> bool:
+    """Photoshop COM/JSX 原生 PSD 导出（有 PS 环境时的主路径）。
+    图层结构自上而下（对齐参考模版 小帆船审核206209.psd）：
+      颜色名文字层(最顶,平铺) → 标贴层(平铺) → 鞋体 pixel 层(平铺)
+      → 「表格」组(全部 TypeTool 文字层 + 线框层 + 表头主LOGO) → 底格白底(最底)
+    文字全部为可编辑 TypeTool 文字层；坐标与 JPG/前端预览共用 compute_table_text_layout。
+    """
     psApp = None
     co_inited = False
     try:
         import win32com.client
         import pythoncom
-        import time, subprocess
         try:
             pythoncom.CoInitialize()
             co_inited = True
         except Exception:
             pass
-        for attempt in range(2):
+        # 连接/启动 Photoshop：去掉 sleep(8) 硬等，改为轮询 COM 直至就绪（最长 60s）
+        ps_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe"))
+        launched = False
+        deadline = time.time() + 60
+        while psApp is None and time.time() < deadline:
             try:
                 psApp = win32com.client.Dispatch("Photoshop.Application")
-                break
             except Exception as ex_disp:
-                print(f"[Render-Native] COM Dispatch 尝试 {attempt+1} 失败: {ex_disp}")
-                if attempt == 0:
-                    # M4：glob 探测所有已装版本并取最新（路径字典序最大者），兼容 CC2019~2025+
-                    ps_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe"))
-                    if ps_candidates:
-                        subprocess.Popen([ps_candidates[-1], "/Automation"])
-                        time.sleep(8)
+                if not launched and ps_candidates:
+                    subprocess.Popen([ps_candidates[-1], "/Automation"])
+                    launched = True
+                    print(f"[Render-Native] 正在启动 Photoshop: {ps_candidates[-1]}")
+                else:
+                    print(f"[Render-Native] 等待 Photoshop COM 就绪... ({ex_disp})")
+                time.sleep(1.5)
         if not psApp:
             print("[Render-Native] 无法连接到 Photoshop.Application COM 实例")
             return False
         psApp.DisplayDialogs = 3
-        
+
         psd_target = str(out_psd_filepath).replace("\\", "/")
         lines_file_esc = str(lines_png_path).replace("\\", "/")
-        
-        title_str = tmpl_cfg.get("title", "臻兴科技开发样品单").strip() or "臻兴科技开发样品单"
-        category_title = tmpl_cfg.get("category_title", "成人女鞋").strip() or "成人女鞋"
-        rev_l = tmpl_cfg.get("reviewer", "审核:")
-        rev_r = tmpl_cfg.get("re_reviewer", "复核:")
-        reviewer_str = f"{rev_l}               {rev_r}"
-        fabrics_str = f"面料: {task.fabrics}"
-        soles_str = f"鞋底: {task.soles}"
-        
-        lbl_sku = tmpl_cfg.get("labels", {}).get("sku", "货号:")
-        lbl_season = tmpl_cfg.get("labels", {}).get("season", "季节:")
-        lbl_craft = tmpl_cfg.get("labels", {}).get("craft", "工艺:")
-        lbl_cat = tmpl_cfg.get("labels", {}).get("category", "类别:")
-        lbl_last = tmpl_cfg.get("labels", {}).get("last", "楦型:")
-        lbl_mat = tmpl_cfg.get("labels", {}).get("material_code", "素材编号:")
-        
-        title_esc = to_unicode_esc(title_str)
-        category_esc = to_unicode_esc(category_title)
-        reviewer_esc = to_unicode_esc(reviewer_str)
-        fabrics_esc = to_unicode_esc(fabrics_str)
-        soles_esc = to_unicode_esc(soles_str)
-        
-        sku_esc = to_unicode_esc(task.sku)
-        season_esc = to_unicode_esc(task.season)
-        craft_esc = to_unicode_esc(task.craft)
-        cat_val_esc = to_unicode_esc(task.category)
-        size_val_esc = to_unicode_esc(f"尺码 {task.size}")
-        mat_esc = to_unicode_esc(task.material_code)
-        
-        left_labels_esc = to_unicode_esc(f"{lbl_sku}\n\n{lbl_season}\n\n{lbl_craft}\n\n{lbl_cat}\n\n{lbl_last}\n\n设计:\n\n版师:\n\n打单:\n\n印花:\n\n{lbl_mat}")
-        
+
+        # 与 JPG 渲染共用同一套文字坐标（单轨）
+        entries = compute_table_text_layout(tmpl_cfg, task)
+
+        def _ps_font(ent):
+            return FONT_NAME_MAP.get(ent["font_name"], ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
+
+        # 颜色名文字层参数（per-shoe，置于最顶层）
         fonts_cfg = tmpl_cfg.get("fonts", {})
-        title_font_name = fonts_cfg.get("title_font", "Microsoft YaHei")
-        title_font_ps = FONT_NAME_MAP.get(title_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
-        title_color = fonts_cfg.get("title_color", "#000000")
-        
-        category_font_name = fonts_cfg.get("category_font", "Microsoft YaHei")
-        category_font_ps = FONT_NAME_MAP.get(category_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
-        category_color = fonts_cfg.get("category_color", "#000000")
-        
-        table_font_name = fonts_cfg.get("table_font", "Microsoft YaHei")
-        table_font_ps = FONT_NAME_MAP.get(table_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
-        table_color = fonts_cfg.get("table_color", "#000000")
+        cl_font_name = fonts_cfg.get("color_label_font", "Microsoft YaHei")
+        cl_font_ps = FONT_NAME_MAP.get(cl_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
+        cl_size_px = int(fonts_cfg.get("color_label_size", 56))
+        cl_size_pt = round(cl_size_px * PS_PT_PER_PX, 2)
+        cl_color = fonts_cfg.get("color_label_color", "#000000")
+        cl_bold = "true" if fonts_cfg.get("color_label_weight") == "bold" else "false"
+        cl_ascent, _ = resolve_pil_font(cl_font_name, cl_size_px, cl_bold == "true").getmetrics()
 
-        labels_font_name = fonts_cfg.get("labels_font", "Microsoft YaHei")
-        labels_font_ps = FONT_NAME_MAP.get(labels_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
-        labels_color = fonts_cfg.get("labels_color", "#000000")
-
-        color_label_font_name = fonts_cfg.get("color_label_font", "Microsoft YaHei")
-        color_label_font_ps = FONT_NAME_MAP.get(color_label_font_name, ("msyh.ttc", "msyhbd.ttc", "MicrosoftYaHei"))[2]
-        color_label_color = fonts_cfg.get("color_label_color", "#000000")
-        
-        grp1_name = to_unicode_esc("【底表文字与规格信息】")
-        grp_lines_name = to_unicode_esc("【底表线框与底板】")
-        
         jsx_parts = [
             "try {",
             "app.displayDialogs = DialogModes.NO;",
             "app.preferences.rulerUnits = Units.PIXELS;",
             "app.preferences.typeUnits = TypeUnits.POINTS;",
             'var doc = app.documents.add(3508, 2480, 300, "MasterPSD", NewDocumentMode.RGB, DocumentFill.WHITE);',
-            f'var grpText = doc.layerSets.add(); grpText.name = "{grp1_name}";',
+            # 底格：白底背景层改名为「底格」并置于最底
+            'try { var bg = doc.layers[doc.layers.length - 1]; bg.isBackgroundLayer = false; bg.name = "\\u5e95\\u683c"; } catch(eb) {}',
             """
-            function addText(grp, nameEsc, contentEsc, x, y, size, fontPsName, hexColor) {
+            function addText(grp, nameEsc, contentEsc, x, baselineY, sizePt, fontPsName, hexColor, isBold) {
                 var layer = grp.artLayers.add();
                 layer.kind = LayerKind.TEXT;
-                layer.name = nameEsc;
                 var ti = layer.textItem;
-                ti.contents = contentEsc;
-                ti.size = size;
-                ti.position = [x, y];
+                ti.content = contentEsc;
+                ti.size = sizePt;
+                ti.position = [x, baselineY];
                 if (fontPsName && fontPsName.length > 0) {
-                    try { ti.font = fontPsName; } catch(fe) {}
+                    if (isBold) { try { ti.font = fontPsName + "-Bold"; } catch(fb) { try { ti.font = fontPsName; ti.fauxBold = true; } catch(fb2) {} } }
+                    else { try { ti.font = fontPsName; } catch(fe) {} }
                 }
                 if (hexColor && hexColor.length === 7) {
                     try {
@@ -1906,72 +1995,93 @@ def export_photoshop_native_psd(
                         ti.color = sc;
                     } catch(ce) {}
                 }
+                layer.name = nameEsc;
                 return layer;
             }
-            function importPNG(grp, filePath, targetX, targetY, layerName) {
+            function importPNGToGroupBottom(grp, filePath, targetX, targetY, layerName) {
+                // 导入 PNG 到组内最底（线框/主LOGO 在「表格」组内沉底，文字层在上）
                 var fileRef = new File(filePath);
                 if (!fileRef.exists) return null;
                 var srcDoc = app.open(fileRef);
-                var dup = srcDoc.activeLayer.duplicate(doc);
+                var dup = srcDoc.activeLayer.duplicate(grp, ElementPlacement.PLACEATEND);
                 srcDoc.close(SaveOptions.DONOTSAVECHANGES);
                 dup.name = layerName;
-                dup.move(grp, ElementPlacement.PLACEATEND);
+                var curX = dup.bounds[0].value;
+                var curY = dup.bounds[1].value;
+                dup.translate(targetX - curX, targetY - curY);
+                return dup;
+            }
+            function importPNGToDocTop(filePath, targetX, targetY, layerName) {
+                // 导入 PNG 到文档最顶（鞋体/标贴 平铺不分组）
+                var fileRef = new File(filePath);
+                if (!fileRef.exists) return null;
+                var srcDoc = app.open(fileRef);
+                var dup = srcDoc.activeLayer.duplicate(doc, ElementPlacement.PLACEATBEGINNING);
+                srcDoc.close(SaveOptions.DONOTSAVECHANGES);
+                dup.name = layerName;
                 var curX = dup.bounds[0].value;
                 var curY = dup.bounds[1].value;
                 dup.translate(targetX - curX, targetY - curY);
                 return dup;
             }
             """,
-            f'addText(grpText, "{to_unicode_esc("表头标题")}", "{title_esc}", 960, 180, 26, "{title_font_ps}", "{title_color}");',
-            f'addText(grpText, "{to_unicode_esc("品类名称")}", "{category_esc}", 880, 330, 24, "{category_font_ps}", "{category_color}");',
-            f'addText(grpText, "{to_unicode_esc("审核复核")}", "{reviewer_esc}", 2680, 180, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("面料材质")}", "{fabrics_esc}", 2480, 420, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("鞋底材质")}", "{soles_esc}", 2480, 540, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("左侧字段标签")}", "{left_labels_esc}", 80, 330, 16, "{labels_font_ps}", "{labels_color}");',
-            f'addText(grpText, "{to_unicode_esc("货号数值")}", "{sku_esc}", 472, 330, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("季节数值")}", "{season_esc}", 472, 445, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("工艺数值")}", "{craft_esc}", 472, 560, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("类别数值")}", "{cat_val_esc}", 472, 675, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("楦型尺码")}", "{size_val_esc}", 472, 790, 18, "{table_font_ps}", "{table_color}");',
-            f'addText(grpText, "{to_unicode_esc("素材编号")}", "{mat_esc}", 395, 1370, 16, "{table_font_ps}", "{table_color}");',
-            f'var grpLines = doc.layerSets.add(); grpLines.name = "{grp_lines_name}";',
-            f'importPNG(grpLines, "{lines_file_esc}", 0, 0, "{to_unicode_esc("表格线框线条")}");'
+            # 「表格」组：先建组，先放线框与主LOGO（沉底），再加全部文字层（在组内上部）
+            f'var grpTable = doc.layerSets.add(); grpTable.name = "\\u8868\\u683c";',
         ]
-        
         if head_logo_path and head_logo_path.exists():
             hl_esc = str(head_logo_path).replace("\\", "/")
-            jsx_parts.append(f'importPNG(grpLines, "{hl_esc}", {head_logo_info["x"]}, {head_logo_info["y"]}, "{to_unicode_esc("表头主LOGO")}");')
-            
+            jsx_parts.append(f'importPNGToGroupBottom(grpTable, "{hl_esc}", {head_logo_info["x"]}, {head_logo_info["y"]}, "\\u8868\\u5934\\u4e3bLOGO");')
+        jsx_parts.append(f'importPNGToGroupBottom(grpTable, "{lines_file_esc}", 0, 0, "\\u7ebf\\u6846");')
+
+        for ent in entries:
+            layer_name = ent["text"].strip()[:40] or ent["name"]
+            jsx_parts.append(
+                f'addText(grpTable, "{to_unicode_esc(layer_name)}", "{to_unicode_esc(ent["text"])}", '
+                f'{ent["x"]}, {ent["y_baseline"]}, {ent["size_pt"]}, '
+                f'"{_ps_font(ent)}", "{ent["color"]}", {"true" if ent["weight"] == "bold" else "false"});'
+            )
+
+        # 鞋体 pixel 层（平铺不分组，位于「表格」组之上）
         for s_info in shoes_render_info:
-            s_grp_name = to_unicode_esc(f"【款式{s_info['idx']+1}-{s_info['color']}】")
-            jsx_parts.append(f"var sGrp = doc.layerSets.add(); sGrp.name = '{s_grp_name}';")
-            c_label_esc = to_unicode_esc(s_info['color'])
-            jsx_parts.append(f'addText(sGrp, "{to_unicode_esc("颜色标注-" + s_info["color"])}", "{c_label_esc}", {s_info["lbl_x"]}, {s_info["lbl_y"]}, 20);')
-            
             shoe_png_esc = str(s_info["cutout_path"]).replace("\\", "/")
-            jsx_parts.append(f'importPNG(sGrp, "{shoe_png_esc}", {s_info["x"]}, {s_info["y"]}, "{to_unicode_esc("鞋体-" + s_info["color"])}");')
-            
+            jsx_parts.append(f'importPNGToDocTop("{shoe_png_esc}", {s_info["x"]}, {s_info["y"]}, "{to_unicode_esc("鞋体-" + s_info["color"])}");')
+        # 标贴层（平铺不分组，位于鞋体之上）
+        for s_info in shoes_render_info:
             for l_item in s_info["logos"]:
                 l_png_esc = str(l_item["path"]).replace("\\", "/")
-                jsx_parts.append(f'importPNG(sGrp, "{l_png_esc}", {l_item["x"]}, {l_item["y"]}, "{to_unicode_esc(l_item["name"])}");')
-                
+                jsx_parts.append(f'importPNGToDocTop("{l_png_esc}", {l_item["x"]}, {l_item["y"]}, "{to_unicode_esc(l_item["name"])}");')
+        # 颜色名文字层（最顶层）
+        for s_info in shoes_render_info:
+            jsx_parts.append(
+                f'addText(doc, "{to_unicode_esc(s_info["color"])}", "{to_unicode_esc(s_info["color"])}", '
+                f'{s_info["lbl_x"]}, {s_info["lbl_y"] + cl_ascent}, {cl_size_pt}, "{cl_font_ps}", "{cl_color}", {cl_bold});'
+            )
+
         jsx_parts.extend([
             f'var saveFile = new File("{psd_target}");',
             'var opt = new PhotoshopSaveOptions();',
             'opt.layers = true;',
             'opt.maximizeCompatibility = true;',
-            'doc.saveAs(saveFile, opt, false, Extension.LOWERCASE);',
+            # 显式 save + close 后再返回，Python 端随后轮询文件存在性
+            'doc.saveAs(saveFile, opt, true, Extension.LOWERCASE);',
             'doc.close(SaveOptions.DONOTSAVECHANGES);',
             '"SUCCESS";',
             '} catch(e) {',
             '"ERROR: " + e.message + " line: " + e.line;',
             '}'
         ])
-        
+
         full_jsx = "\n".join(jsx_parts)
         res = psApp.DoJavaScript(full_jsx)
         print(f"[Render-Native] ExtendScript Result: {res}")
-        return os.path.exists(out_psd_filepath) and os.path.getsize(out_psd_filepath) > 1000
+        # JSX 已显式 save/close；此处轮询文件落盘（超时 120s），不再使用 sleep 硬等
+        poll_deadline = time.time() + 120
+        while time.time() < poll_deadline:
+            if os.path.exists(out_psd_filepath) and os.path.getsize(out_psd_filepath) > 1000:
+                return True
+            time.sleep(0.5)
+        print(f"[Render-Native] 等待 PSD 落盘超时(120s): {out_psd_filepath}")
+        return False
     except Exception as e:
         print(f"[Render-Native] Photoshop COM 异常: {e}")
         return False
@@ -2010,44 +2120,12 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     font_table = resolve_pil_font(fonts_cfg.get("table_font", "Microsoft YaHei"), int(fonts_cfg.get("table_size", 52)), fonts_cfg.get("table_weight") == "bold")
     font_labels = resolve_pil_font(fonts_cfg.get("labels_font", "Microsoft YaHei"), int(fonts_cfg.get("labels_size", 48)), fonts_cfg.get("labels_weight") == "bold")
     
-    # 4. 绘制表头与规格文本
-    title_str = tmpl_cfg.get("title", "臻兴科技开发样品单").strip() or "臻兴科技开发样品单"
-    draw.text((960, 140), title_str, fill=fonts_cfg.get("title_color", "#000000"), font=font_title)
-    
-    cat_str = tmpl_cfg.get("category_title", "成人女鞋").strip() or "成人女鞋"
-    draw.text((880, 310), cat_str, fill=fonts_cfg.get("category_color", "#000000"), font=font_cat)
-    
-    # 审核复核
-    rev_l = tmpl_cfg.get("reviewer", "审核:")
-    rev_r = tmpl_cfg.get("re_reviewer", "复核:")
-    draw.text((2680, 155), rev_l, fill=fonts_cfg.get("labels_color", "#000000"), font=font_labels)
-    draw.text((3070, 155), rev_r, fill=fonts_cfg.get("labels_color", "#000000"), font=font_labels)
-    
-    # 左侧标签列与数值列
-    lbls = tmpl_cfg.get("labels", {})
-    divider_x = int(lines_cfg.get("divider_x", 840))
-    label_w = int(lines_cfg.get("left_table_label_w", 285))
-    
-    left_fields = [
-        (lbls.get("sku", "货号:"), task.sku, 315),
-        (lbls.get("season", "季节:"), task.season, 432),
-        (lbls.get("craft", "工艺:"), task.craft, 550),
-        (lbls.get("category", "类别:"), task.category, 666),
-        (lbls.get("last", "楦型:"), f"{lbls.get('size', '尺码')} {task.size}", 782),
-        (lbls.get("designer", "设计:"), "", 897),
-        (lbls.get("patternmaker", "版师:"), "", 1012),
-        (lbls.get("order", "打单:"), "", 1127),
-        (lbls.get("print", "印花:"), "", 1242),
-        (lbls.get("material_code", "素材编号:"), task.material_code, 1361)
-    ]
-    for lbl_txt, val_txt, y_pos in left_fields:
-        draw.text((60, y_pos), lbl_txt, fill=fonts_cfg.get("labels_color", "#000000"), font=font_labels)
-        if val_txt:
-            draw.text((350, y_pos), val_txt, fill=fonts_cfg.get("table_color", "#000000"), font=font_table)
-            
-    # 面料与鞋底
-    draw.text((2480, 405), f"面料: {task.fabrics}", fill=fonts_cfg.get("table_color", "#000000"), font=font_table)
-    draw.text((2480, 530), f"鞋底: {task.soles}", fill=fonts_cfg.get("table_color", "#000000"), font=font_table)
+    # 4. 绘制表头与规格文本（坐标与前端预览/PSD 导出共用 compute_table_text_layout，单轨不分叉）
+    FONT_PIL_MAP = {"title": font_title, "category": font_cat, "table": font_table, "labels": font_labels}
+    table_text_entries = compute_table_text_layout(tmpl_cfg, task)
+    for ent in table_text_entries:
+        draw.text((ent["x"], ent["y_top"]), ent["text"], fill=ent["color"], font=FONT_PIL_MAP[ent["font_key"]])
+
     
     # 5. 绘制主表头 LOGO
     l_fname = tmpl_cfg.get("logo_filename", "logos/logo_square_boat.png")
@@ -2214,44 +2292,15 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     rgb_img = base_img.convert("RGB")
     rgb_img.save(out_filepath, "JPEG", quality=95, dpi=(300, 300))
     
-    # 8. 导出 Photoshop 100% 原生可编辑文字图层 PSD (或 Pytoshop 独立图层降级)
+    # 8. 导出 PSD：有 Photoshop 时 COM/JSX 原生可编辑文字路径为主；pytoshop 仅作无 PS 环境的降级
     out_psd_filename = f"{sku_part}_{date_part}_{timestamp}.psd"
     out_psd_filepath = OUTPUT_DIR / out_psd_filename
     has_psd = False
-    editable_text = False   # P0-2：默认按 pytoshop 路径（文字为栅格化图层）
-    dpi_verified = False    # P0-1：psd-tools 回读校验结果
+    editable_text = False   # pytoshop 降级路径保持 False；COM 主路径为 True
+    dpi_verified = False
 
-    # 原生 Pytoshop 极速分层 PSD 写入 (毫秒级直出)
-    if HAS_PYTOSHOP:
-        try:
-            t_psd0 = time.time()
-            all_psd_layers = []
-            if pytoshop_base_layer:
-                all_psd_layers.append(pytoshop_base_layer)
-            if pytoshop_groups:
-                all_psd_layers.extend(pytoshop_groups)
-
-            if all_psd_layers:
-                psd_doc = nested_layers.nested_layers_to_psd(
-                    all_psd_layers,
-                    color_mode=enums.ColorMode.rgb,
-                    compression=enums.Compression.rle  # P0-1：RLE 压缩，显著减小体积
-                )
-                # P0-1：补写 300DPI ResolutionInfo 与 merged composite 合成预览图
-                _attach_psd_metadata(psd_doc, rgb_img)
-                with open(out_psd_filepath, "wb") as f_psd:
-                    psd_doc.write(f_psd)
-                has_psd = True
-                editable_text = False
-                # P0-2：pytoshop 路径的文字图层为栅格化位图，不可在 Photoshop 中编辑文字
-                print(f"[Render] Pytoshop 极速生成分层 PSD 成功 (耗时: {time.time()-t_psd0:.3f}s；注意：文字为栅格化图层，不可编辑): {out_psd_filepath}")
-                # P0-1：导出后回读断言 DPI==300，失败仅告警不阻断
-                dpi_verified = verify_psd_dpi(out_psd_filepath)
-        except Exception as ex_psd:
-            print(f"[Render] Pytoshop 生成 PSD 失败: {ex_psd}")
-            has_psd = False
-
-    if not has_psd:
+    ps_exe_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe"))
+    if ps_exe_candidates:
         try:
             has_psd = export_photoshop_native_psd(
                 out_psd_filepath,
@@ -2264,13 +2313,39 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
                 num_shoes
             )
             if has_psd:
-                # P0-2：COM 路径由 Photoshop 原生文字图层构成，文字可编辑
                 editable_text = True
                 print(f"[Render] Photoshop COM 原生 PSD 生成成功（文字图层可编辑）: {out_psd_filepath}")
-                # COM 路径由 Photoshop 以 300DPI 建文档，同样回读确认
                 dpi_verified = verify_psd_dpi(out_psd_filepath)
         except Exception as ex_com:
-            print(f"[Render] Photoshop COM 降级失败: {ex_com}")
+            print(f"[Render] Photoshop COM 导出失败，降级 pytoshop: {ex_com}")
+            has_psd = False
+
+    # 降级路径：无 Photoshop 或 COM 失败 → pytoshop 直出（文字栅格化，editable_text=False）
+    if not has_psd and HAS_PYTOSHOP:
+        try:
+            t_psd0 = time.time()
+            all_psd_layers = []
+            if pytoshop_base_layer:
+                all_psd_layers.append(pytoshop_base_layer)
+            if pytoshop_groups:
+                all_psd_layers.extend(pytoshop_groups)
+
+            if all_psd_layers:
+                psd_doc = nested_layers.nested_layers_to_psd(
+                    all_psd_layers,
+                    color_mode=enums.ColorMode.rgb,
+                    compression=enums.Compression.rle
+                )
+                _attach_psd_metadata(psd_doc, rgb_img)
+                with open(out_psd_filepath, "wb") as f_psd:
+                    psd_doc.write(f_psd)
+                has_psd = True
+                editable_text = False
+                print(f"[Render] Pytoshop 降级生成分层 PSD (耗时: {time.time()-t_psd0:.3f}s；文字为栅格化图层，不可编辑): {out_psd_filepath}")
+                dpi_verified = verify_psd_dpi(out_psd_filepath)
+        except Exception as ex_psd:
+            print(f"[Render] Pytoshop 生成 PSD 失败: {ex_psd}")
+            has_psd = False
 
     # M1：渲染临时目录用完即清理（COM 路径的 importPNG 已在上方同步读完）
     try:

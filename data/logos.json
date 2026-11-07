@@ -1255,5 +1255,16 @@
     "default_rel_y": 0.45,
     "default_scale": 0.85,
     "is_builtin": true
+  },
+  {
+    "id": "logo_5a24e74c",
+    "name": "generated-1792736374219",
+    "file": "logos/logo_generated-1792736374219_5a24e74c.png",
+    "category": "自定义",
+    "role": "通用素材",
+    "default_type": "side",
+    "is_builtin": false,
+    "width": 1004,
+    "height": 990
   }
 ]
