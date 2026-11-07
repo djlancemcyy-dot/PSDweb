@@ -4429,51 +4429,6 @@ function updateBatchBarUI() {
   }
 }
 
-// --- 素材库悬浮放大预览浮层（tooltip 式，300ms 延迟出现，定位在格子旁不遮挡） ---
-let matHoverPreviewTimer = null;
-
-function getMatHoverPreviewEl() {
-  // 惰性创建全局唯一的悬浮预览浮层
-  let tip = document.getElementById("mat-hover-preview");
-  if (!tip) {
-    tip = document.createElement("div");
-    tip.id = "mat-hover-preview";
-    tip.className = "mat-hover-preview";
-    tip.innerHTML = `<img alt="素材放大预览"><div class="mat-hover-preview-name"></div>`;
-    document.body.appendChild(tip);
-  }
-  return tip;
-}
-
-function scheduleMatHoverPreview(logo, imgPath, card) {
-  cancelMatHoverPreview();
-  matHoverPreviewTimer = setTimeout(() => {
-    const tip = getMatHoverPreviewEl();
-    tip.querySelector("img").src = imgPath;
-    tip.querySelector(".mat-hover-preview-name").textContent = logo.name || "";
-    tip.style.display = "block";
-    // 跟随格子位置：素材库在屏幕右侧，浮层优先显示在格子左侧，避免遮挡格子本身
-    const rect = card.getBoundingClientRect();
-    const tipW = tip.offsetWidth || 236;
-    const tipH = tip.offsetHeight || 260;
-    let left = rect.left - tipW - 12;
-    if (left < 8) left = Math.min(rect.right + 12, window.innerWidth - tipW - 8);
-    let top = rect.top + rect.height / 2 - tipH / 2;
-    top = Math.max(8, Math.min(top, window.innerHeight - tipH - 8));
-    tip.style.left = `${left}px`;
-    tip.style.top = `${top}px`;
-  }, 300);
-}
-
-function cancelMatHoverPreview() {
-  if (matHoverPreviewTimer) {
-    clearTimeout(matHoverPreviewTimer);
-    matHoverPreviewTimer = null;
-  }
-  const tip = document.getElementById("mat-hover-preview");
-  if (tip) tip.style.display = "none";
-}
-
 // --- 素材库双击大图预览弹窗（复用 qz-modal 体系：黑色遮罩 + 居中大图 + 点击关闭） ---
 function openMatPreviewModal(logo, imgPath) {
   const modal = document.getElementById("modal-mat-preview");
@@ -4531,14 +4486,9 @@ function renderMaterialsDrawerLogos() {
       e.dataTransfer.setData("text/plain", logo.id);
     };
 
-    // 悬浮格子：300ms 延迟显示放大预览浮层（位于格子旁，不遮挡格子）
-    card.onmouseenter = () => scheduleMatHoverPreview(logo, imgPath, card);
-    card.onmouseleave = () => cancelMatHoverPreview();
-
-    // 双击格子：打开大图预览弹窗（黑色遮罩 + 居中大图 + 点击关闭）
+    // 双击格子才预览：打开大图预览弹窗（黑色遮罩 + 居中大图 + 点击关闭），不做悬浮预览
     card.ondblclick = (e) => {
       e.stopPropagation();
-      cancelMatHoverPreview();
       openMatPreviewModal(logo, imgPath);
     };
 
