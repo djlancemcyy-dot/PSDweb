@@ -3919,3 +3919,38 @@ body.qz-app {
   padding: 3px 4px;
   font-size: 10px;
 }
+
+/* ===== 保存方式下拉菜单 ===== */
+.save-split-wrap { position: relative; display: inline-block; }
+.save-split-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--bg-panel, #ffffff);
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  padding: 6px;
+  display: none;
+  z-index: 400;
+}
+.save-split-menu.show { display: block; }
+.save-split-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+  cursor: pointer;
+  text-align: left;
+}
+.save-split-item:hover { background: var(--bg-hover, #eef2f7); }
+.save-item-sub { font-size: 11px; font-weight: 400; color: var(--text-muted, #94a3b8); }

@@ -1774,7 +1774,22 @@ function setupEventListeners() {
 
   const btnBatchCut = document.getElementById("btn-batch-cutout") || document.getElementById("btn-batch-cutout-bottom");
   if (btnBatchCut) btnBatchCut.onclick = triggerBatchCutout;
-  document.getElementById("btn-render-current").onclick = () => renderAndExportCurrent(false);
+  // 保存方式下拉菜单：保存图片 / 保存PSD / 保存图片+PSD（ZIP 单文件下载，避免浏览器多文件下载确认）
+  const saveMenu = document.getElementById("save-split-menu");
+  const saveWrap = document.getElementById("save-split-wrap");
+  document.getElementById("btn-render-current").onclick = (e) => {
+    e.stopPropagation();
+    saveMenu.classList.toggle("show");
+  };
+  document.addEventListener("click", (e) => {
+    if (saveWrap && !saveWrap.contains(e.target)) saveMenu.classList.remove("show");
+  });
+  saveMenu.querySelectorAll(".save-split-item").forEach(btn => {
+    btn.onclick = () => {
+      saveMenu.classList.remove("show");
+      renderAndExportCurrent(btn.dataset.saveMode);
+    };
+  });
   document.getElementById("btn-batch-render-all").onclick = batchRenderActiveGroup;
   document.getElementById("btn-open-folder").onclick = openOutputFolder;
 
@@ -3708,14 +3723,18 @@ function renderShoeListCards() {
 }
 
 
-async function renderAndExportCurrent(isSilent = false) {
+async function renderAndExportCurrent(saveMode = "both") {
+  // saveMode: image=仅图片(默认PNG) / psd=仅PSD / both=图片+PSD(ZIP单次下载)
+  const wantImage = saveMode !== "psd";
+  const wantPsd = saveMode !== "image";
   const task = getActiveTask();
   if (!task || task.shoes.length === 0) {
-    if (!isSilent) alert("当前款式尚未添加鞋子照片！");
+    alert("当前款式尚未添加鞋子照片！");
     return null;
   }
 
-  showLoading(`正在生成【${task.name}】300DPI 审版大图 (自动调用离线 AI 抠图引擎)...`);
+  const modeText = saveMode === "image" ? "300DPI PNG 大图" : saveMode === "psd" ? "Photoshop 分层 PSD" : "300DPI PNG 大图 + PSD";
+  showLoading(`正在生成【${task.name}】${modeText}...`);
 
   const payload = {
     id: task.id,
@@ -3748,7 +3767,8 @@ async function renderAndExportCurrent(isSilent = false) {
   };
 
   try {
-    const res = await fetch("/api/render", {
+    const qs = `image_format=png&include_image=${wantImage}&include_psd=${wantPsd}`;
+    const res = await fetch(`/api/render?${qs}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -3760,40 +3780,31 @@ async function renderAndExportCurrent(isSilent = false) {
       renderShoeListCards();
       syncGroupsToServer();
 
-      if (!isSilent) {
-        hideLoading();
-        // 自动触发 300DPI JPG 送审图下载
-        const aJpg = document.createElement("a");
-        aJpg.href = data.download_url;
-        aJpg.download = data.filename;
-        document.body.appendChild(aJpg);
-        aJpg.click();
-        document.body.removeChild(aJpg);
+      hideLoading();
+      // 单次下载工具函数
+      const triggerDownload = (url, name) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
 
-        // 后端若声明文字不可编辑（栅格化位图），顺带提示
-        if (data.editable_text === false) {
-          showToast("ℹ️ 提示：导出 PSD 中的文字为栅格化位图，不可直接编辑");
-        }
+      if (saveMode === "both" && data.download_url && data.has_psd && data.psd_download_url) {
+        // 图片+PSD 打 ZIP 单次下载，浏览器不再弹『下载多个文件』确认
+        triggerDownload(`/api/download-zip?files=${encodeURIComponent(data.filename + "," + data.psd_filename)}`,
+                        data.filename.replace(/\.(png|jpg)$/i, "") + "_送审图稿.zip");
+      } else {
+        if (wantImage && data.download_url) triggerDownload(data.download_url, data.filename);
+        if (wantPsd && data.has_psd && data.psd_download_url) triggerDownload(data.psd_download_url, data.psd_filename);
+      }
 
-        // 如果生成了可编辑分层 PSD，也自动触发下载
-        if (data.has_psd && data.psd_download_url) {
-          const aPsd = document.createElement("a");
-          aPsd.href = data.psd_download_url;
-          aPsd.download = data.psd_filename;
-          document.body.appendChild(aPsd);
-          setTimeout(() => {
-            aPsd.click();
-            document.body.removeChild(aPsd);
-          }, 350);
-        }
-
-        setTimeout(() => {
-          const psdTip = data.has_psd ? `\n2. 🎨 Photoshop 100% 可编辑分层工程 (${data.psd_filename})` : '';
-          const msg = `🎉【${task.name}】审版图稿已全量输出！\n\n已为您同步输出：\n1. 🖼️ 300DPI 印刷送审大图 (${data.filename})${psdTip}\n\n保存在：\n${data.filepath}\n\n是否立即打开成品文件夹？`;
-          if (confirm(msg)) {
-            openOutputFolder();
-          }
-        }, 600);
+      // 后端若声明文字不可编辑（栅格化位图），顺带提示
+      if (wantPsd && data.editable_text === false) {
+        showToast("ℹ️ 提示：导出 PSD 中的文字为栅格化位图，不可直接编辑");
+      } else {
+        showToast(`🎉【${task.name}】已保存到成品目录并下载：${saveMode === "image" ? data.filename : saveMode === "psd" ? data.psd_filename : "图片+PSD（ZIP）"}`);
       }
       return data;
     } else {
@@ -3801,10 +3812,10 @@ async function renderAndExportCurrent(isSilent = false) {
     }
   } catch (err) {
     console.error(err);
-    if (!isSilent) alert("生成失败：" + err.message);
+    alert("生成失败：" + err.message);
     return null;
   } finally {
-    if (!isSilent) hideLoading();
+    hideLoading();
   }
 }
 

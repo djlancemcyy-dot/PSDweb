@@ -2107,7 +2107,7 @@ def export_photoshop_native_psd(
             except Exception:
                 pass
 
-def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
+def render_task_to_file(task: TaskItem, image_format: str = "png", include_image: bool = True, include_psd: bool = True) -> Dict[str, Any]:
     tmpl_cfg = load_template_config()
     fonts_cfg = tmpl_cfg.get("fonts", {})
     lines_cfg = tmpl_cfg.get("lines", {})
@@ -2295,13 +2295,17 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     # 输出文件名中的用户输入统一清洗，避免路径注入与 /api/download 白名单拦截
     sku_part = sanitize_name(task.sku.strip() or task.name.strip() or "鞋样审核")
     date_part = sanitize_name(task.material_code.replace(".", ""))
-    out_filename = f"{sku_part}_{date_part}_{timestamp}.jpg"
+    # 7. 导出 300DPI 送审大图：默认 PNG（无损），可选 JPEG；include_image=False 时只出 PSD
+    image_format = "jpg" if str(image_format).lower() in ("jpg", "jpeg") else "png"
+    out_filename = f"{sku_part}_{date_part}_{timestamp}.{image_format}"
     out_filepath = OUTPUT_DIR / out_filename
-    
-    # 7. 导出 300DPI JPEG 印刷送审大图
     rgb_img = base_img.convert("RGB")
-    rgb_img.save(out_filepath, "JPEG", quality=95, dpi=(300, 300))
-    
+    if include_image:
+        if image_format == "jpg":
+            rgb_img.save(out_filepath, "JPEG", quality=95, dpi=(300, 300))
+        else:
+            base_img.save(out_filepath, "PNG", dpi=(300, 300))
+
     # 8. 导出 PSD：有 Photoshop 时 COM/JSX 原生可编辑文字路径为主；pytoshop 仅作无 PS 环境的降级
     out_psd_filename = f"{sku_part}_{date_part}_{timestamp}.psd"
     out_psd_filepath = OUTPUT_DIR / out_psd_filename
@@ -2309,7 +2313,7 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     editable_text = False   # pytoshop 降级路径保持 False；COM 主路径为 True
     dpi_verified = False
 
-    ps_exe_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe"))
+    ps_exe_candidates = sorted(glob.glob(r"C:/Program Files/Adobe/Adobe Photoshop */Photoshop.exe")) if include_psd else []
     if ps_exe_candidates:
         try:
             has_psd = export_photoshop_native_psd(
@@ -2331,7 +2335,7 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
             has_psd = False
 
     # 降级路径：无 Photoshop 或 COM 失败 → pytoshop 直出（文字栅格化，editable_text=False）
-    if not has_psd and HAS_PYTOSHOP:
+    if include_psd and not has_psd and HAS_PYTOSHOP:
         try:
             t_psd0 = time.time()
             all_psd_layers = []
@@ -2366,9 +2370,9 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     return {
         "status": "success",
         "task_id": task.id,
-        "filename": out_filename,
-        "filepath": str(out_filepath),
-        "download_url": f"/api/download/{out_filename}",
+        "filename": out_filename if include_image else None,
+        "filepath": str(out_filepath) if include_image else None,
+        "download_url": f"/api/download/{out_filename}" if include_image else None,
         "has_psd": has_psd,
         "psd_filename": out_psd_filename if has_psd else None,
         "psd_filepath": str(out_psd_filepath) if has_psd else None,
@@ -2380,9 +2384,9 @@ def render_task_to_file(task: TaskItem) -> Dict[str, Any]:
     }
 
 @app.post("/api/render")
-def render_sheet(task: TaskItem):
+def render_sheet(task: TaskItem, image_format: str = "png", include_image: bool = True, include_psd: bool = True):
     try:
-        return render_task_to_file(task)
+        return render_task_to_file(task, image_format=image_format, include_image=include_image, include_psd=include_psd)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -2410,8 +2414,36 @@ def download_output(filename: str):
         raise HTTPException(status_code=403, detail="禁止访问输出目录之外的文件")
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
-    media_type = "image/jpeg" if target.suffix.lower() in (".jpg", ".jpeg") else "application/octet-stream"
+    media_type = "application/octet-stream"
+    if target.suffix.lower() in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    elif target.suffix.lower() == ".png":
+        media_type = "image/png"
     return FileResponse(target, filename=filename, media_type=media_type)
+
+@app.get("/api/download-zip")
+def download_zip_bundle(files: str):
+    """将多个成品文件打成单个 ZIP 下载，避免浏览器『下载多个文件』确认弹窗"""
+    import zipfile
+    names = [n.strip() for n in files.split(",") if n.strip()]
+    if not names:
+        raise HTTPException(status_code=400, detail="未指定文件")
+    out_root = Path(OUTPUT_DIR).resolve()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in names:
+            if not re.fullmatch(r'[\w一-鿿.\-]+', name):
+                raise HTTPException(status_code=400, detail="非法文件名")
+            target = (out_root / name).resolve()
+            if not target.is_relative_to(out_root) or not target.exists() or not target.is_file():
+                raise HTTPException(status_code=404, detail=f"文件不存在: {name}")
+            zf.write(target, arcname=name)
+    buf.seek(0)
+    zip_name = Path(names[0]).stem + "_送审图稿.zip"
+    from fastapi.responses import StreamingResponse
+    from urllib.parse import quote
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(zip_name)}"})
 
 
 @app.get("/api/settings")

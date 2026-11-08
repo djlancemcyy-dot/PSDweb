@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>小帆船 · 鞋样送审图稿制作系统</title>
-  <link rel="stylesheet" href="/static/style.css?v=2.5.4">
+  <link rel="stylesheet" href="/static/style.css?v=2.6.0">
 </head>
 <body class="qz-app">
 
@@ -44,9 +44,16 @@
       <button class="qz-btn qz-btn-secondary" id="btn-save-layout-snapshot" title="将当前画布排版与标位存入该款式的历史库">
         <span>📸</span> 存排版快照
       </button>
-      <button class="qz-btn qz-btn-primary" id="btn-render-current" title="导出当前款式的 300DPI 送审大图及 Photoshop 可编辑分层 PSD 工程文件">
-        <span>📥</span> 生成审版图 (300DPI + PSD)
-      </button>
+      <div class="save-split-wrap" id="save-split-wrap">
+        <button class="qz-btn qz-btn-primary" id="btn-render-current" title="选择保存方式：图片（默认 PNG）/ PSD / 图片+PSD（ZIP 单文件下载）">
+          <span>📥</span> 保存审版图 (300DPI) ▾
+        </button>
+        <div class="save-split-menu" id="save-split-menu">
+          <button class="save-split-item" data-save-mode="image">🖼️ 保存图片 <span class="save-item-sub">300DPI PNG 大图</span></button>
+          <button class="save-split-item" data-save-mode="psd">🎨 保存PSD <span class="save-item-sub">Photoshop 可编辑分层工程</span></button>
+          <button class="save-split-item" data-save-mode="both">📦 保存图片+PSD <span class="save-item-sub">打包 ZIP 单次下载</span></button>
+        </div>
+      </div>
       <button class="qz-btn qz-btn-secondary" id="btn-open-folder" title="打开成品存储文件夹">
         <span>📁</span> 成品目录
       </button>
@@ -922,6 +929,6 @@
 
   <div class="toast-chip" id="global-toast">已复制</div>
 
-  <script src="/static/app.js?v=2.5.4"></script>
+  <script src="/static/app.js?v=2.6.0"></script>
 </body>
 </html>
