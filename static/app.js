@@ -3891,9 +3891,16 @@ async function batchRenderActiveGroup() {
 
 async function openOutputFolder() {
   try {
-    await fetch("/api/open-folder");
+    const res = await fetch("/api/open-folder");
+    const data = await res.json();
+    if (data.status === "success") {
+      showToast(`📂 已打开成品目录：${data.path}`);
+    } else {
+      showToast(`⚠️ 打开成品目录失败：${data.detail || "未知错误"}`);
+    }
   } catch (err) {
     console.error(err);
+    showToast(`⚠️ 打开成品目录失败：${err.message}`);
   }
 }
 
