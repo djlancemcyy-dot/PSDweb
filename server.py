@@ -2581,6 +2581,8 @@ def open_output_folder(path: Optional[str] = None):
         except Exception:
             subprocess.Popen(["explorer.exe", str(target)])
         return {"status": "success", "path": str(target)}
+    except HTTPException:
+        raise  # 白名单等 4xx 异常直接抛出，不能被兜底逻辑吞掉
     except Exception as e:
         try:
             subprocess.Popen(["explorer.exe", str(OUTPUT_DIR)])
