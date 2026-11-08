@@ -612,6 +612,15 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# 静态资源禁缓存：本地工具需要改完即生效，避免浏览器拿旧 CSS/JS（no-cache 每次回源校验，本地零成本）
+@app.middleware("http")
+async def disable_static_cache(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith((".css", ".js", ".html")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 # Models
 class PlacedLogo(BaseModel):
     logo_id: str
