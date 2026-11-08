@@ -928,7 +928,7 @@ def cutout_existing_logo(logo_id: str):
         raise HTTPException(status_code=500, detail=f"标贴抠图失败: {e}")
 
 @app.post("/api/logos/upload-and-cutout")
-async def upload_and_cutout_logo(file: UploadFile = File(...), auto_cutout: bool = True):
+async def upload_and_cutout_logo(file: UploadFile = File(...), auto_cutout: bool = False):
     try:
         contents = await file.read()
         pil_img = Image.open(io.BytesIO(contents))
@@ -1141,37 +1141,18 @@ async def upload_multiple_materials_api(
             continue
 
         try:
+            # 按需抠图：入库保留原图（含白底与完整构图），不再自动去背/裁剪；
+            # 需要透明底时由用户点击卡片上的「抠图」按钮，走 /api/logos/{id}/cutout
             pil_img = Image.open(io.BytesIO(contents))
             if pil_img.mode != "RGBA":
                 pil_img = pil_img.convert("RGBA")
-            arr = np.array(pil_img)
-            alpha = arr[:, :, 3]
-            gray = np.mean(arr[:, :, :3], axis=2)
-            is_transparent = np.any(alpha < 250)
-            if is_transparent:
-                mask = alpha > 15
-            else:
-                mask = gray < 245
-                white_mask = (arr[:, :, 0] > 242) & (arr[:, :, 1] > 242) & (arr[:, :, 2] > 242)
-                arr[white_mask, 3] = 0
-                pil_img = Image.fromarray(arr, "RGBA")
-
-            if np.mean(mask) < 0.005:
-                continue
-
-            ys, xs = np.where(mask)
-            x0 = max(0, int(xs.min()) - 4)
-            y0 = max(0, int(ys.min()) - 4)
-            x1 = min(pil_img.width, int(xs.max()) + 4)
-            y1 = min(pil_img.height, int(ys.max()) + 4)
-            cropped = pil_img.crop((x0, y0, x1, y1))
 
             stem = Path(fname).stem
             clean_stem = re.sub(r'[^A-Za-z0-9_一-龥\-]', '_', stem)
             uid = uuid.uuid4().hex[:8]
             out_name = f"logo_{clean_stem}_{uid}.png"
             out_path = ASSETS_DIR / "logos" / out_name
-            cropped.save(out_path, format="PNG")
+            pil_img.save(out_path, format="PNG")
 
             item = {
                 "id": f"logo_{uid}",
@@ -1181,8 +1162,8 @@ async def upload_multiple_materials_api(
                 "role": "通用素材",
                 "default_type": "side",
                 "is_builtin": False,
-                "width": cropped.width,
-                "height": cropped.height
+                "width": pil_img.width,
+                "height": pil_img.height
             }
             db.append(item)
             added_items.append(item)

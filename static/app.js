@@ -4476,6 +4476,7 @@ function renderMaterialsDrawerLogos() {
       <div class="logo-card-hover-actions">
         <button class="mat-hover-btn btn-apply" title="➕ 置入到当前选中的鞋款">➕ 置入</button>
         <button class="mat-hover-btn btn-all-shoes" title="⚡ 一键置入到所有配色">⚡ 全色</button>
+        <button class="mat-hover-btn btn-cutout" title="✂️ 按需抠图：将该素材背景去除（原图入库时不再自动抠图）">✂️ 抠图</button>
         <button class="mat-hover-btn danger btn-del" title="删除素材">🗑️</button>
       </div>
     `;
@@ -4529,6 +4530,27 @@ function renderMaterialsDrawerLogos() {
     }
 
 
+
+    // ✂️ 按需抠图：仅用户点击时才调用 AI 去背，入库保留原图
+    card.querySelector(".btn-cutout").onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm(`确定对素材【${logo.name}】执行 AI 抠图去底吗？`)) return;
+      showLoading(`正在为【${logo.name}】抠图去底...`);
+      try {
+        const res = await fetch(`/api/logos/${logo.id}/cutout`, { method: "POST" });
+        const data = await res.json();
+        if (data.status === "success") {
+          showToast(`✂️ 【${logo.name}】已抠图完成，原图保留在素材目录`);
+          await reloadLogosPool();
+        } else {
+          throw new Error(data.detail || "抠图失败");
+        }
+      } catch (err) {
+        showToast("抠图失败: " + err.message);
+      } finally {
+        hideLoading();
+      }
+    };
 
     // ⚡ 全色 (Apply to all shoes at once)
     card.querySelector(".btn-all-shoes").onclick = (e) => {
