@@ -2,22 +2,22 @@
   {
     "id": "group_default",
     "name": "11.06 送审批次 (默认)",
-    "created_at": "2026-11-06 12:00:00",
+    "created_at": "2026-11-08T01:53:45.914Z",
     "tasks": [
       {
-        "id": "task_206209",
-        "name": "反绒皮休闲女单鞋 (侧面+后跟标款)",
-        "sku": "206229",
-        "material_code": "2026.11.06",
-        "season": "秋单",
+        "id": "task_1794102825914",
+        "name": "经典复古拼接单鞋 (4色四宫格)",
+        "sku": "206209",
+        "material_code": "2026.11.08",
+        "season": "四季鞋",
         "craft": "冷粘",
-        "category": "休闲鞋",
+        "category": "单鞋",
         "size": "36",
-        "fabrics": "牛反绒+沙丁布+植绒",
+        "fabrics": "反绒皮+网布",
         "soles": "橡胶大底",
         "shoes": [
           {
-            "id": "shoe_1793995678005_0",
+            "id": "shoe_1794103861161_0",
             "color_name": "黑色",
             "raw_filename": "sample_68e206bc.png",
             "cutout_filename": "sample_68e206bc.png",
@@ -29,56 +29,24 @@
               {
                 "logo_id": "logo_square_boat",
                 "file": "logos/logo_square_boat.png",
-                "rel_x": 0.3362756978536454,
-                "rel_y": -0.0020819847851722695,
-                "scale": 0.43594624660326087,
+                "rel_x": 0.32,
+                "rel_y": 0.05,
+                "scale": 0.5079310344827586,
                 "rotation": 0.0
               },
               {
                 "logo_id": "logo_nvg_cursive",
                 "file": "logos/logo_nvg_cursive.png",
-                "rel_x": 0.23186230628973542,
-                "rel_y": 0.45,
-                "scale": 0.5514424252717391,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-060",
-                "file": "logos/library/logo_22SS-060.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-062",
-                "file": "logos/library/logo_22SS-062.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-064",
-                "file": "logos/library/logo_22SS-064.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-066",
-                "file": "logos/library/logo_22SS-066.png",
-                "rel_x": 1.618364440221558,
-                "rel_y": 1.308664151687272,
-                "scale": 0.85,
+                "rel_x": 0.24403377058913975,
+                "rel_y": 0.45645427914819864,
+                "scale": 0.4184811927532327,
                 "rotation": 0.0
               }
             ]
           },
           {
-            "id": "shoe_1793995678005_1",
-            "color_name": "咖色",
+            "id": "shoe_1794103861161_1",
+            "color_name": "粉色",
             "raw_filename": "sample_15529268.png",
             "cutout_filename": "sample_15529268.png",
             "is_cutout": true,
@@ -89,56 +57,24 @@
               {
                 "logo_id": "logo_square_boat",
                 "file": "logos/logo_square_boat.png",
-                "rel_x": 0.3362756978536454,
-                "rel_y": -0.0020819847851722695,
-                "scale": 0.43594624660326087,
+                "rel_x": 0.32,
+                "rel_y": 0.05,
+                "scale": 0.5079310344827586,
                 "rotation": 0.0
               },
               {
                 "logo_id": "logo_nvg_cursive",
                 "file": "logos/logo_nvg_cursive.png",
-                "rel_x": 0.23186230628973542,
-                "rel_y": 0.45,
-                "scale": 0.5514424252717391,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-060",
-                "file": "logos/library/logo_22SS-060.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-062",
-                "file": "logos/library/logo_22SS-062.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-064",
-                "file": "logos/library/logo_22SS-064.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-066",
-                "file": "logos/library/logo_22SS-066.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
+                "rel_x": 0.24403377058913975,
+                "rel_y": 0.45645427914819864,
+                "scale": 0.4184811927532327,
                 "rotation": 0.0
               }
             ]
           },
           {
-            "id": "shoe_1793995678005_2",
-            "color_name": "米白",
+            "id": "shoe_1794103861161_2",
+            "color_name": "ddddd",
             "raw_filename": "sample_a71092b8.png",
             "cutout_filename": "sample_a71092b8.png",
             "is_cutout": true,
@@ -149,68 +85,50 @@
               {
                 "logo_id": "logo_square_boat",
                 "file": "logos/logo_square_boat.png",
-                "rel_x": 0.3362756978536454,
-                "rel_y": -0.0020819847851722695,
-                "scale": 0.43594624660326087,
+                "rel_x": 0.32,
+                "rel_y": 0.05,
+                "scale": 0.5079310344827586,
                 "rotation": 0.0
               },
               {
                 "logo_id": "logo_nvg_cursive",
                 "file": "logos/logo_nvg_cursive.png",
-                "rel_x": 0.23186230628973542,
-                "rel_y": 0.45,
-                "scale": 0.5514424252717391,
+                "rel_x": 0.24403377058913975,
+                "rel_y": 0.45645427914819864,
+                "scale": 0.4184811927532327,
+                "rotation": 0.0
+              }
+            ]
+          },
+          {
+            "id": "shoe_1794103861161_3",
+            "color_name": "蓝色",
+            "raw_filename": "sample_efa09a3b.png",
+            "cutout_filename": "sample_efa09a3b.png",
+            "is_cutout": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "scale_multiplier": 1.0,
+            "logos": [
+              {
+                "logo_id": "logo_square_boat",
+                "file": "logos/logo_square_boat.png",
+                "rel_x": 0.32,
+                "rel_y": 0.05,
+                "scale": 0.5079310344827586,
                 "rotation": 0.0
               },
               {
-                "logo_id": "logo_22SS-060",
-                "file": "logos/library/logo_22SS-060.png",
-                "rel_x": 1.1376021593824326,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-062",
-                "file": "logos/library/logo_22SS-062.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-064",
-                "file": "logos/library/logo_22SS-064.png",
-                "rel_x": 2.1382587974622265,
-                "rel_y": 0.28005595734871996,
-                "scale": 0.85,
-                "rotation": 0.0
-              },
-              {
-                "logo_id": "logo_22SS-066",
-                "file": "logos/library/logo_22SS-066.png",
-                "rel_x": 0.45,
-                "rel_y": 0.45,
-                "scale": 0.85,
+                "logo_id": "logo_nvg_cursive",
+                "file": "logos/logo_nvg_cursive.png",
+                "rel_x": 0.24403377058913975,
+                "rel_y": 0.45645427914819864,
+                "scale": 0.4184811927532327,
                 "rotation": 0.0
               }
             ]
           }
         ],
-        "canvas_logos": []
-      },
-      {
-        "id": "task_206229",
-        "name": "款式 206229",
-        "sku": "206229",
-        "material_code": "2026.11.06",
-        "season": "四季鞋",
-        "craft": "冷粘",
-        "category": "单鞋",
-        "size": "36",
-        "fabrics": "牛反绒+沙丁布+植绒",
-        "soles": "橡胶大底",
-        "shoes": [],
         "canvas_logos": []
       }
     ]
