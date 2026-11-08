@@ -4469,7 +4469,7 @@ function renderMaterialsDrawerLogos() {
 
     card.innerHTML = `
       ${state.is_batch_mat_mode ? `<input type="checkbox" class="mat-card-chk" ${isChecked ? "checked" : ""} style="position:absolute; top:4px; left:4px; z-index:2; cursor:pointer;">` : ""}
-      <div class="logo-card-img-wrap mat-grid-thumb" title="悬浮查看放大预览，双击查看大图">
+      <div class="logo-card-img-wrap mat-grid-thumb" title="双击查看大图">
         <img src="${imgPath}" alt="${logo.name}" style="max-width:90%; max-height:90%; object-fit:contain; pointer-events:none;">
       </div>
       <div class="logo-card-title-text" style="margin-top:4px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${logo.name}">${logo.name}</div>

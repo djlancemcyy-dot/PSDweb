@@ -3883,3 +3883,39 @@ body.qz-app {
   color: var(--text-muted, #999);
   font-size: 13px;
 }
+
+/* ===== 素材库卡片竖排修正：.logo-item-card 默认是横排 flex，3 列会溢出，作用域覆盖为竖排 ===== */
+#drawer-logos-grid .logo-item-card {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 4px !important;
+  padding: 6px !important;
+  min-width: 0 !important;       /* 允许收缩，防止内容撑破 1fr 列宽 */
+  position: relative !important;
+}
+#drawer-logos-grid .logo-card-title-text {
+  width: 100%;
+  text-align: center;
+}
+/* 操作按钮悬浮覆盖在图上方（默认隐藏，悬停卡片时出现），不占卡片高度 */
+#drawer-logos-grid .logo-card-hover-actions {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: none;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  z-index: 3;
+}
+#drawer-logos-grid .logo-item-card:hover .logo-card-hover-actions {
+  display: flex;
+}
+#drawer-logos-grid .mat-hover-btn {
+  padding: 3px 4px;
+  font-size: 10px;
+}
